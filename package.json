@@ -1,0 +1,107 @@
+{
+  "name": "exam-station-app",
+  "version": "1.0.0",
+  "description": "Imtahan nəticələrini stansiya-stansiya yığan offline desktop tətbiq (Electron + Express + SQLite + React)",
+  "main": "electron/main.js",
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "dev:backend":  "node backend/server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:electron": "wait-on http://127.0.0.1:5050/api/health http://127.0.0.1:5173 && electron .",
+    "dev":          "concurrently -k -n BE,FE,EL -c blue,green,magenta \"npm:dev:backend\" \"npm:dev:frontend\" \"npm:dev:electron\"",
+
+    "build:frontend": "cd frontend && npm install && npm run build",
+
+    "migrate":      "node backend/migrations/run.js",
+    "seed":         "node backend/migrations/seed.js",
+    "hash":         "node backend/scripts/hash-password.js",
+
+    "rebuild:sqlite": "electron-rebuild -f -w sqlite3 -m ./backend",
+    "rebuild:native": "electron-builder install-app-deps",
+
+    "pack":      "npm run build:frontend && electron-builder --dir",
+    "dist":      "npm run build:frontend && electron-builder",
+    "dist:win":  "npm run build:frontend && electron-builder --win",
+    "dist:mac":  "npm run build:frontend && electron-builder --mac",
+    "dist:linux":"npm run build:frontend && electron-builder --linux"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "sqlite3": "^5.1.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "@electron/rebuild": "^3.6.1",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.example.examstation",
+    "productName": "ExamStation",
+    "asar": true,
+    "forceCodeSigning": false,
+    "asarUnpack": [
+      "backend/**/*",
+      "node_modules/sqlite3/**/*"
+    ],
+    "files": [
+      "electron/**/*",
+      "backend/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "!frontend/**/*",
+      "!release/**/*",
+      "!**/{.git,.gitignore,*.log}",
+      "!**/test/**",
+      "!**/tests/**",
+      "!**/{*.ts,tsconfig.json,.eslintrc*}",
+      "!**/node_modules/*/{CHANGELOG.md,README,readme.md,readme}",
+      "!**/node_modules/.cache"
+    ],
+    "extraResources": [
+      {
+        "from": "frontend/dist",
+        "to": "frontend/dist",
+        "filter": ["**/*"]
+      }
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Exam Station",
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.productivity",
+      "identity": null
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Office"
+    }
+  }
+}

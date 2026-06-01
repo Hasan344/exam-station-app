@@ -1,0 +1,16 @@
+node_modules/
+dist/
+release/
+*.db
+*.db-journal
+.DS_Store
+*.log
+.env
+.env.local
+.vscode/
+.idea/
+backend/photos/
+backend/database.db-shm
+backend/database.db-wal
+*.db-shm
+*.db-wal

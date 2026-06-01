@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html { font-family: theme('fontFamily.sans'); }
+  body { background: theme('colors.paper.DEFAULT'); }
+  input, button, textarea, select { font: inherit; }
+  /* Number input arrow gizlət */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] { -moz-appearance: textfield; }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-soft
+           text-sm font-medium transition-colors disabled:opacity-50
+           disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary {
+    @apply btn bg-moss-500 text-paper hover:bg-moss-600 active:bg-moss-700;
+  }
+  .btn-secondary {
+    @apply btn bg-ink-100 text-ink-800 hover:bg-ink-200 border border-ink-200;
+  }
+  .btn-danger {
+    @apply btn bg-rust-500 text-paper hover:bg-rust-600;
+  }
+  .btn-ghost {
+    @apply btn text-ink-700 hover:bg-ink-100;
+  }
+  .field {
+    @apply block w-full bg-paper border border-ink-200 rounded-soft px-3 py-2
+           text-sm text-ink-800 placeholder-ink-300
+           focus:outline-none focus:ring-2 focus:ring-moss-300
+           focus:border-moss-400 transition-colors;
+  }
+  .field-mono { @apply field font-mono tabular-nums; }
+  .label {
+    @apply block text-xs uppercase tracking-wider font-medium text-ink-500 mb-1;
+  }
+  .label-inline {
+    @apply block text-xs uppercase tracking-wider font-medium text-ink-500 mb-1;
+  }
+  .card {
+    @apply bg-paper border border-ink-200 rounded-soft shadow-card;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs
+           font-medium bg-ink-100 text-ink-700 border border-ink-200;
+  }
+  .pill-moss   { @apply pill bg-moss-50 text-moss-700 border-moss-200; }
+  .pill-clay   { @apply pill bg-clay-100 text-clay-500 border-clay-200; }
+  .pill-rust   { @apply pill bg-rust-400/10 text-rust-600 border-rust-400/30; }
+  .divider     { @apply border-t border-ink-200; }
+}
+
+/* Sırf yığım səhifəsi üçün böyük rəqəm input */
+.huge-input {
+  font-family: theme('fontFamily.mono');
+  font-size: 2.25rem;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* Login shake */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+.animate-shake { animation: shake 0.35s ease-in-out; }
