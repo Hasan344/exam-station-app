@@ -52,10 +52,10 @@ export default {
         },
       },
       fontFamily: {
-        display: ['"DM Serif Display"', "Georgia", "serif"],
-        sans:    ['"Geist"', "Inter", "system-ui", "sans-serif"],
-        mono:    ['"JetBrains Mono"', "ui-monospace", "monospace"],
-      },
+  display: ['"IBM Plex Serif"', "Georgia", "serif"],
+  sans:    ['"IBM Plex Sans"', "system-ui", "sans-serif"],
+  mono:    ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+},
       boxShadow: {
         card: "0 1px 0 rgba(29,27,21,0.04), 0 8px 24px -12px rgba(29,27,21,0.18)",
         deep: "0 8px 40px -16px rgba(29,27,21,0.4)",

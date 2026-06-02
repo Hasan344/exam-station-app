@@ -11,7 +11,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, EmptyState } from "../components/ui/Primitives.jsx";
-
+import ResultEditPasswordCard from "../components/ResultEditPasswordCard.jsx";
 const TABS = [
   { id: "import",   label: "İdxal" },
   { id: "exam",     label: "İmtahanlar" },
@@ -319,6 +319,8 @@ function PasswordTab() {
   };
 
   return (
+     <div className="space-y-6">
+
     <Card title="Parolu dəyiş" subtitle={`İstifadəçi: ${user?.name || "admin"}`}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-xl">
         <div>
@@ -334,6 +336,8 @@ function PasswordTab() {
         {busy ? "Yeniləyir..." : "Dəyiş"}
       </button>
     </Card>
+    <ResultEditPasswordCard />
+  </div>
   );
 }
 function ResultsAppImportCard() {

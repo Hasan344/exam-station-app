@@ -23,6 +23,15 @@ function RequireSetup({ children }) {
   return children;
 }
 
+// Station rejimində Quraşdırma/Admin BAĞLIDIR — yalnız admin rejimində açıqdır.
+// Kilidlidirsə iş səhifəsinə yönləndirir (oradan admin girişi ilə açıla bilər).
+function RequireAdmin({ children }) {
+  const { isAdmin, loaded } = useAuth();
+  if (!loaded) return null;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return children;
+}
+
 function Shell({ children }) {
   return (
     <div className="min-h-screen flex flex-col">
@@ -42,7 +51,7 @@ export default function App() {
 
       <Route
         path="/setup"
-        element={<Protected><Shell><SetupPage /></Shell></Protected>}
+        element={<Protected><RequireAdmin><Shell><SetupPage /></Shell></RequireAdmin></Protected>}
       />
 
       <Route
@@ -61,7 +70,7 @@ export default function App() {
 
       <Route
         path="/admin"
-        element={<Protected><Shell><AdminPage /></Shell></Protected>}
+        element={<Protected><RequireAdmin><Shell><AdminPage /></Shell></RequireAdmin></Protected>}
       />
 
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -4,6 +4,7 @@
 //   • Sətirlər: tələbələr (sıra № üzrə)
 //   • Sütunlar: hərəkətlər
 //   • Hər xanada raw_value (və ya "İmtina")
+//   • Apellyasiya varsa → NARINCI göstərilir, altında əsas nəticə üstüçızıqlı
 //
 // Filter: İmtahan + Komissiya. Axtarış: ad/soyad/iş №.
 
@@ -23,21 +24,18 @@ export default function ResultsListPage() {
   const [search, setSearch] = useState("");
 
   const [students, setStudents] = useState([]);
-  const [results, setResults] = useState([]);    // bütün nəticələr (filtirli)
+  const [results, setResults] = useState([]);
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // İmtahan + komissiya siyahıları
   useEffect(() => {
     api.get("/exams").then(setExams).catch(err => toast.error(err.message));
     api.get("/commissions").then(setCommissions).catch(err => toast.error(err.message));
   }, []);
 
-  // Filter dəyişəndə data yüklə
   useEffect(() => {
     if (!examId) { setStudents([]); setResults([]); setExercises([]); return; }
     setLoading(true);
-
     const sParam = commissionNo ? `&commissionNo=${commissionNo}` : "";
     Promise.all([
       api.get(`/students?examId=${examId}${sParam}`),
@@ -46,7 +44,6 @@ export default function ResultsListPage() {
       .then(([st, rs]) => {
         setStudents(st);
         setResults(rs);
-        // bu data dəstində istifadə olunan hərəkətləri tap
         const exMap = new Map();
         for (const r of rs) {
           if (!exMap.has(r.exercise_id)) {
@@ -64,7 +61,6 @@ export default function ResultsListPage() {
       .finally(() => setLoading(false));
   }, [examId, commissionNo]);
 
-  // student_id × exercise_id → result lookup
   const lookup = useMemo(() => {
     const m = new Map();
     for (const r of results) m.set(`${r.student_id}-${r.exercise_id}`, r);
@@ -86,14 +82,20 @@ export default function ResultsListPage() {
   const stats = useMemo(() => {
     const total = students.length * exercises.length;
     const filled = results.length;
+    const appealed = results.filter(r => r.appeal_value != null || r.appeal_is_refused).length;
     return {
       students: students.length,
       exercises: exercises.length,
       cells: total,
       filled,
+      appealed,
       pct: total > 0 ? Math.round((filled / total) * 100) : 0,
     };
   }, [students, exercises, results]);
+
+  const exportUrl = examId
+    ? `/exports/results.xlsx?examId=${examId}${commissionNo ? `&commissionNo=${commissionNo}` : ""}`
+    : null;
 
   return (
     <>
@@ -126,23 +128,33 @@ export default function ResultsListPage() {
         </div>
 
         {examId && (
-          <div className="text-xs text-ink-600 ml-auto">
-            <strong>{stats.students}</strong> tələbə · <strong>{stats.exercises}</strong> hərəkət
-            <span className="ml-2 px-2 py-0.5 rounded bg-moss-100 text-moss-700">
-              {stats.filled}/{stats.cells} ({stats.pct}%)
-            </span>
-          </div>
+          <button
+            className="btn-primary self-end"
+            onClick={() => api.download(exportUrl, `results_exam${examId}.xlsx`)}
+          >
+            Excel ixrac
+          </button>
         )}
       </Toolbar>
 
+      {examId && (
+        <div className="mb-3 flex items-center gap-3 text-xs text-ink-600">
+          <span><strong>{stats.students}</strong> tələbə · <strong>{stats.exercises}</strong> hərəkət</span>
+          <span className="px-2 py-0.5 rounded bg-moss-100 text-moss-700">
+            {stats.filled}/{stats.cells} ({stats.pct}%)
+          </span>
+          {stats.appealed > 0 && (
+            <span className="px-2 py-0.5 rounded bg-orange-100 text-orange-700 border border-orange-300">
+              {stats.appealed} apellyasiya
+            </span>
+          )}
+        </div>
+      )}
+
       {loading ? <Spinner /> : !examId ? (
-        <Card>
-          <EmptyState title="İmtahan seçin" hint="Yuxarıdakı filtrlərdən istifadə edin" />
-        </Card>
+        <Card><EmptyState title="İmtahan seçin" hint="Yuxarıdakı filtrlərdən istifadə edin" /></Card>
       ) : filteredStudents.length === 0 ? (
-        <Card>
-          <EmptyState title="Tələbə tapılmadı" hint="Filtrləri yumşaldıb yenidən cəhd edin" />
-        </Card>
+        <Card><EmptyState title="Tələbə tapılmadı" hint="Filtrləri yumşaldıb yenidən cəhd edin" /></Card>
       ) : (
         <div className="overflow-x-auto card">
           <table className="min-w-full text-sm">
@@ -170,15 +182,36 @@ export default function ResultsListPage() {
                   {exercises.map(ex => {
                     const r = lookup.get(`${s.id}-${ex.id}`);
                     if (!r) return <td key={ex.id} className="px-3 py-2 text-ink-300">—</td>;
-                    if (r.is_refused) return (
-                      <td key={ex.id} className="px-3 py-2">
-                        <span className="px-2 py-0.5 text-xs rounded bg-rust-500 text-paper">İmtina</span>
-                      </td>
-                    );
+
+                    const hasAppeal = r.appeal_value != null || r.appeal_is_refused;
+
+                    if (!hasAppeal) {
+                      if (r.is_refused) return (
+                        <td key={ex.id} className="px-3 py-2">
+                          <span className="px-2 py-0.5 text-xs rounded bg-rust-500 text-paper">İmtina</span>
+                        </td>
+                      );
+                      return (
+                        <td key={ex.id} className="px-3 py-2">
+                          <span className="font-mono">{formatRaw(r.raw_value, ex.unit)}</span>
+                          {r.notes && <div className="text-xs text-ink-400">ⓘ {r.notes}</div>}
+                        </td>
+                      );
+                    }
+
+                    // Apellyasiya var → narıncı, altında əsas nəticə üstüçızıqlı
+                    const baseText = r.is_refused ? "İmtina" : formatRaw(r.raw_value, ex.unit);
                     return (
                       <td key={ex.id} className="px-3 py-2">
-                        <span className="font-mono">{formatRaw(r.raw_value, ex.unit)}</span>
-                        {r.notes && <div className="text-xs text-ink-400">ⓘ {r.notes}</div>}
+                        {r.appeal_is_refused ? (
+                          <span className="px-2 py-0.5 text-xs rounded bg-orange-500 text-paper" title="Apellyasiya">İmtina (apel.)</span>
+                        ) : (
+                          <span className="font-mono font-semibold text-orange-600" title="Apellyasiya qiyməti">
+                            {formatRaw(r.appeal_value, ex.unit)}
+                          </span>
+                        )}
+                        <div className="text-[11px] text-ink-300 line-through" title="Əsas nəticə">{baseText}</div>
+                        {r.appeal_notes && <div className="text-xs text-orange-500">⚖ {r.appeal_notes}</div>}
                       </td>
                     );
                   })}

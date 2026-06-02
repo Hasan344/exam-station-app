@@ -1,15 +1,23 @@
 // src/components/TopBar.jsx
 //
-// Üst panel: layihə logosu + breadcrumb (cari setup) + admin menyusu.
+// Üst panel: logo + breadcrumb + naviqasiya.
+// Rejimə görə dəyişir:
+//   • admin   → bütün tab-lar + "Çıxış"
+//   • station → yalnız "İş səhifəsi" və "Nəticələr" + "Admin girişi" (kilidi açır)
+//
+// Station rejimində çıxış da admin parolu tələb edir (əvvəlcə kilidi aç, sonra çıx).
 
+import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useSetup } from "../context/SetupContext.jsx";
+import AdminUnlockModal from "./AdminUnlockModal.jsx";
 
 export default function TopBar() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin, isStation } = useAuth();
   const { setup, reset } = useSetup();
   const nav = useNavigate();
+  const [unlockOpen, setUnlockOpen] = useState(false);
 
   const onLogout = () => {
     logout();
@@ -31,24 +39,47 @@ export default function TopBar() {
 
           <nav className="hidden md:flex items-center gap-1">
             <NavTab to="/" exact label="İş səhifəsi" />
-            <NavTab to="/setup" label="Quraşdırma" />
             <NavTab to="/results" label="Nəticələr" />
-            <NavTab to="/admin" label="Admin" />
+            {/* Yalnız admin rejimində */}
+            {isAdmin && <NavTab to="/setup" label="Quraşdırma" />}
+            {isAdmin && <NavTab to="/admin" label="Admin" />}
           </nav>
         </div>
 
         <div className="flex items-center gap-3">
           <SetupBreadcrumb setup={setup} />
+
+          {isStation && (
+            <span className="hidden sm:inline text-[10px] uppercase tracking-widest px-2 py-1 rounded-soft bg-moss-400/20 text-moss-200 border border-moss-400/30">
+              Stansiya rejimi
+            </span>
+          )}
+
           {user && (
             <div className="flex items-center gap-3 text-sm">
               <span className="text-ink-300">{user.name}</span>
-              <button onClick={onLogout} className="text-rust-400 hover:text-rust-500">
-                Çıxış
-              </button>
+              {isStation ? (
+                <button
+                  onClick={() => setUnlockOpen(true)}
+                  className="text-moss-300 hover:text-moss-200"
+                >
+                  Admin girişi
+                </button>
+              ) : (
+                <button onClick={onLogout} className="text-rust-400 hover:text-rust-500">
+                  Çıxış
+                </button>
+              )}
             </div>
           )}
         </div>
       </div>
+
+      <AdminUnlockModal
+        open={unlockOpen}
+        onClose={() => setUnlockOpen(false)}
+        onUnlocked={() => nav("/setup")}
+      />
     </header>
   );
 }

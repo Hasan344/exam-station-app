@@ -18,6 +18,7 @@ import { useToast } from "../context/ToastContext.jsx";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, Chip, Spinner, EmptyState } from "../components/ui/Primitives.jsx";
 import { unitLabel } from "../lib/format.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 function StepNumber({ n, active, done }) {
   return (
@@ -50,6 +51,7 @@ function Step({ n, title, hint, active, done, children }) {
 export default function SetupPage() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { lockStation } = useAuth();   
   const { setup, setSection, setExam, setExercises, setCommission, reset } = useSetup();
 
   const [sections, setSections] = useState([]);
@@ -124,6 +126,7 @@ export default function SetupPage() {
 
   const start = () => {
     if (!stepDone[4]) return toast.warn("Ən azı bir hərəkət seçin");
+    lockStation();  
     navigate("/");
   };
 
