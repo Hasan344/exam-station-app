@@ -3,6 +3,10 @@
 // Bir hərəkət üçün böyük input + imtina toggle + qeyd + AYRI SAXLA düyməsi.
 // Rejimlər: Nəticə (yaşıl) / Apellyasiya (narıncı).
 //
+// Apellyasiya rejimində əlavə "Dəyişdi / Dəyişmədi" seçimi:
+//   • Dəyişmədi → input bağlıdır, köhnə (əsas) nəticə apellyasiya kimi saxlanılır.
+//   • Dəyişdi   → input açılır, valideyn komponent saxlamadan əvvəl admin parolu istəyir.
+//
 // min_sec vahidi:
 //   • input type="text" olur (number "2.24"-ü onluq sayır, biz mm.ss istəyirik)
 //   • operator "2.24" yazır → altında canlı "= 2:24" göstərilir
@@ -30,6 +34,8 @@ export default function ExerciseInput({
   autoFocus,
   appeal = false,
   referenceText = null,
+  appealDecision = null,            // null | "unchanged" | "changed"
+  onAppealDecisionChange,
 }) {
   const inputRef = useRef(null);
   const readOnly = locked && !unlocked;
@@ -40,11 +46,16 @@ export default function ExerciseInput({
   }, [autoFocus, readOnly]);
 
   const handleKey = (e) => {
-    if (e.key === "Enter") { e.preventDefault(); if (!readOnly) onSave?.(); }
+    if (e.key === "Enter") { e.preventDefault(); if (!readOnly && !saveDisabled) onSave?.(); }
   };
 
   const directionLabel = exercise.direction === 1 ? "az = yaxşı" : "çox = yaxşı";
-  const inputDisabled = readOnly || isRefused;
+
+  // Apellyasiyada dəyər/imtina yalnız "Dəyişdi" seçimində aktivdir.
+  const appealLocksInputs = appeal && appealDecision !== "changed";
+  const refuseDisabled = readOnly || appealLocksInputs;
+  const inputDisabled  = readOnly || isRefused || appealLocksInputs;
+  const saveDisabled   = saving || (appeal && !appealDecision);
 
   // min_sec canlı önizləmə / xəta
   const minSecParsed = isMinSec && !isRefused && value !== "" && value != null
@@ -91,7 +102,7 @@ export default function ExerciseInput({
         <label className={`
           flex items-center gap-2 px-3 py-1.5 rounded-soft cursor-pointer
           text-sm border transition-colors select-none
-          ${readOnly ? "opacity-50 pointer-events-none" : ""}
+          ${refuseDisabled ? "opacity-50 pointer-events-none" : ""}
           ${isRefused
             ? "bg-rust-500 text-paper border-rust-600"
             : "bg-paper text-ink-700 border-ink-200 hover:border-rust-400"}
@@ -99,13 +110,41 @@ export default function ExerciseInput({
           <input
             type="checkbox"
             checked={isRefused}
-            disabled={readOnly}
+            disabled={refuseDisabled}
             onChange={(e) => onRefuseChange(e.target.checked)}
             className="sr-only"
           />
           {isRefused ? "İmtina" : "İmtina deyil"}
         </label>
       </div>
+
+      {/* Apellyasiya: Dəyişdi / Dəyişmədi seçimi */}
+      {appeal && !readOnly && (
+        <div className="mb-3 inline-flex rounded-soft border border-orange-300 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => onAppealDecisionChange?.("unchanged")}
+            className={`px-4 py-2 text-sm transition-colors ${
+              appealDecision === "unchanged"
+                ? "bg-orange-500 text-paper"
+                : "bg-paper text-ink-600 hover:bg-orange-50"
+            }`}
+          >
+            Dəyişmədi
+          </button>
+          <button
+            type="button"
+            onClick={() => onAppealDecisionChange?.("changed")}
+            className={`px-4 py-2 text-sm border-l border-orange-300 transition-colors ${
+              appealDecision === "changed"
+                ? "bg-orange-500 text-paper"
+                : "bg-paper text-ink-600 hover:bg-orange-50"
+            }`}
+          >
+            Dəyişdi
+          </button>
+        </div>
+      )}
 
       {appeal && referenceText != null && (
         <div className="mb-3 text-sm text-ink-500">
@@ -136,6 +175,23 @@ export default function ExerciseInput({
               {unitShort(exercise.unit)}
             </span>
           </div>
+
+          {/* Apellyasiya seçim ipuçları */}
+          {appeal && appealDecision === "unchanged" && (
+            <div className="text-xs text-ink-500 mt-1">
+              Nəticə dəyişmir — köhnə nəticə (<span className="font-mono text-ink-700">{referenceText}</span>) apellyasiya kimi saxlanılacaq.
+            </div>
+          )}
+          {appeal && appealDecision === "changed" && (
+            <div className="text-xs text-orange-600 mt-1">
+              Yeni dəyər admin parolu ilə qeyd ediləcək.
+            </div>
+          )}
+          {appeal && !appealDecision && (
+            <div className="text-xs text-ink-400 mt-1">
+              Saxlamaq üçün əvvəlcə «Dəyişdi» və ya «Dəyişmədi» seçin.
+            </div>
+          )}
 
           {/* min_sec canlı önizləmə / xəta */}
           {isMinSec && !isRefused && (
@@ -176,7 +232,7 @@ export default function ExerciseInput({
             </button>
           </>
         ) : (
-          <button type="button" className={saveBtnCls} onClick={() => onSave?.()} disabled={saving}>
+          <button type="button" className={saveBtnCls} onClick={() => onSave?.()} disabled={saveDisabled}>
             {saving ? "Saxlanılır..." : saved ? "Yenilə" : "Saxla"}
           </button>
         )}

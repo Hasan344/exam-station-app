@@ -1,11 +1,3 @@
-// src/components/TopBar.jsx
-//
-// Üst panel: logo + breadcrumb + naviqasiya.
-// Rejimə görə dəyişir:
-//   • admin   → bütün tab-lar + "Çıxış"
-//   • station → yalnız "İş səhifəsi" və "Nəticələr" + "Admin girişi" (kilidi açır)
-//
-// Station rejimində çıxış da admin parolu tələb edir (əvvəlcə kilidi aç, sonra çıx).
 
 import { useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
@@ -29,13 +21,6 @@ export default function TopBar() {
     <header className="bg-ink-800 text-paper border-b border-ink-900">
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-6">
-          <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-soft bg-moss-400 grid place-items-center font-display text-ink-900 text-lg">E</div>
-            <div>
-              <div className="font-display text-paper leading-tight">Exam Station</div>
-              <div className="text-[10px] uppercase tracking-widest text-ink-300">stansiya nəticələri</div>
-            </div>
-          </Link>
 
           <nav className="hidden md:flex items-center gap-1">
             <NavTab to="/" exact label="İş səhifəsi" />
@@ -49,11 +34,7 @@ export default function TopBar() {
         <div className="flex items-center gap-3">
           <SetupBreadcrumb setup={setup} />
 
-          {isStation && (
-            <span className="hidden sm:inline text-[10px] uppercase tracking-widest px-2 py-1 rounded-soft bg-moss-400/20 text-moss-200 border border-moss-400/30">
-              Stansiya rejimi
-            </span>
-          )}
+          
 
           {user && (
             <div className="flex items-center gap-3 text-sm">
@@ -99,10 +80,7 @@ function NavTab({ to, exact, label }) {
 
 function SetupBreadcrumb({ setup }) {
   const parts = [];
-  if (setup.section)    parts.push({ label: "Bölmə",   value: setup.section.sect_code || setup.section.name });
   if (setup.exam)       parts.push({ label: "İmtahan", value: setup.exam.name });
-  if (setup.commission) parts.push({ label: "K.",      value: setup.commission.commission_no });
-  if (setup.exercises?.length) parts.push({ label: "Hərəkət", value: `${setup.exercises.length}×` });
 
   if (!parts.length) return null;
 

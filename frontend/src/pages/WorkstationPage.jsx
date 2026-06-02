@@ -4,7 +4,9 @@
 //   • Nəticə      → qiymət daxil/redaktə (kilid + redaktə parolu)
 //   • Apellyasiya → eyni hərəkətlərə apellyasiya qiyməti (narıncı), eyni kilid məntiqi
 //
-// Hər iki rejim eyni səhifədədir — apellyasiya üçün admin girişi lazım deyil.
+// Apellyasiya rejimində hər hərəkət üçün "Dəyişdi / Dəyişmədi" seçimi var:
+//   • Dəyişmədi → köhnə (əsas) nəticə apellyasiya kimi saxlanılır, parol istənmir.
+//   • Dəyişdi   → yeni dəyər daxil edilir, saxlamadan əvvəl admin (redaktə) parolu istənir.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSetup } from "../context/SetupContext.jsx";
@@ -100,6 +102,8 @@ export default function WorkstationPage() {
   // Apellyasiya vəziyyəti
   const [appealInputs, setAppealInputs] = useState({});
   const [appealMeta, setAppealMeta] = useState({});
+  // Apellyasiya seçimi: { [exId]: null | "unchanged" | "changed" }
+  const [appealDecisions, setAppealDecisions] = useState({});
 
   const [savingEx, setSavingEx] = useState(null);
   const [savingAll, setSavingAll] = useState(false);
@@ -138,6 +142,7 @@ export default function WorkstationPage() {
     }
     setInputs(ri); setMeta(rm);
     setAppealInputs(ai); setAppealMeta(am);
+    setAppealDecisions({});
   }, [setup.exercises]);
 
   const lookupStudent = async () => {
@@ -229,54 +234,93 @@ export default function WorkstationPage() {
   const saveOne = async (ex, index) => {
     const inp = activeInputs[ex.id];
     const m = activeMeta[ex.id] || {};
-    const label = mode === "appeal" ? "apellyasiya dəyəri" : "dəyər";
-    const err = validateInput(ex, inp, label);
-    if (err) return toast.warn(err);
 
-    setSavingEx(ex.id);
-    try {
-      if (mode === "appeal") {
-        if (m.saved) { const ok = await ensureUnlocked(); if (!ok) return; }
+    // ════════════ APELLYASIYA ════════════
+    if (mode === "appeal") {
+      const decision = appealDecisions[ex.id];
+      if (!decision) return toast.warn(`${ex.name}: «Dəyişdi» və ya «Dəyişmədi» seçin`);
+
+      let appealValue, appealIsRefused;
+      if (decision === "changed") {
+        const err = validateInput(ex, inp, "apellyasiya dəyəri");
+        if (err) return toast.warn(err);
+        appealValue     = inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue);
+        appealIsRefused = !!inp.isRefused;
+      } else {
+        // "unchanged" → köhnə (əsas) nəticəni apellyasiya kimi saxla
+        const main = inputs[ex.id] || {};
+        const hasMain = main.isRefused || (main.rawValue !== "" && main.rawValue != null);
+        if (!hasMain) return toast.warn(`${ex.name}: əsas nəticə yoxdur, «Dəyişmədi» seçilə bilməz`);
+        appealValue     = main.isRefused ? null : inputToRaw(ex.unit, main.rawValue);
+        appealIsRefused = !!main.isRefused;
+      }
+
+      // parol: yalnız "dəyişdi"də (və ya artıq kilidli apellyasiyanı yenidən yazanda)
+      if (decision === "changed" || m.saved) {
+        const ok = await ensureUnlocked(); if (!ok) return;
+      }
+
+      setSavingEx(ex.id);
+      try {
         const r = await api.post("/results/appeal/single", {
           studentId: student.id,
           examId: setup.exam.id,
           exerciseId: ex.id,
-          appealValue: inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue),
-          appealIsRefused: inp.isRefused,
+          appealValue,
+          appealIsRefused,
           appealNotes: inp.notes || null,
           recordedBy: user?.name || "operator",
           editPassword: editPwRef.current || undefined,
         });
         setAppealMeta(prev => ({ ...prev, [ex.id]: { resultId: r.result.id, locked: true, saved: true } }));
-        toast.success(`✓ ${ex.name} — apellyasiya saxlanıldı`);
-      } else {
-        let row;
-        if (m.saved && m.resultId) {
-          const ok = await ensureUnlocked(); if (!ok) return;
-          const r = await api.put(`/results/${m.resultId}`, {
-            rawValue: inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue),
-            isRefused: inp.isRefused,
-            notes: inp.notes || null,
-            editPassword: editPwRef.current,
-            recordedBy: user?.name || "operator",
-          });
-          row = r.result;
-          toast.success(`✓ ${ex.name} yeniləndi`);
-        } else {
-          const r = await api.post("/results/single", {
-            studentId: student.id,
-            examId: setup.exam.id,
-            exerciseId: ex.id,
-            rawValue: inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue),
-            isRefused: inp.isRefused,
-            notes: inp.notes || null,
-            recordedBy: user?.name || "operator",
-          });
-          row = r.result;
-          toast.success(`✓ ${ex.name} saxlanıldı və kilidləndi`);
-        }
-        setMeta(prev => ({ ...prev, [ex.id]: { resultId: row.id, locked: !!row.locked, saved: true } }));
+        toast.success(decision === "unchanged"
+          ? `✓ ${ex.name} — nəticə dəyişmədi, köhnə nəticə saxlanıldı`
+          : `✓ ${ex.name} — yeni apellyasiya nəticəsi saxlanıldı`);
+        focusNextUnsaved(index);
+      } catch (err) {
+        toast.error(err.message);
+      } finally {
+        setSavingEx(null);
       }
+      return;
+    }
+
+    // ════════════ NƏTİCƏ ════════════
+    const err = validateInput(ex, inp, "dəyər");
+    if (err) return toast.warn(err);
+
+    // Kilidli nəticəni yeniləmək üçün əvvəlcə parol
+    if (m.saved && m.resultId) {
+      const ok = await ensureUnlocked(); if (!ok) return;
+    }
+
+    setSavingEx(ex.id);
+    try {
+      let row;
+      if (m.saved && m.resultId) {
+        const r = await api.put(`/results/${m.resultId}`, {
+          rawValue: inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue),
+          isRefused: inp.isRefused,
+          notes: inp.notes || null,
+          editPassword: editPwRef.current,
+          recordedBy: user?.name || "operator",
+        });
+        row = r.result;
+        toast.success(`✓ ${ex.name} yeniləndi`);
+      } else {
+        const r = await api.post("/results/single", {
+          studentId: student.id,
+          examId: setup.exam.id,
+          exerciseId: ex.id,
+          rawValue: inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue),
+          isRefused: inp.isRefused,
+          notes: inp.notes || null,
+          recordedBy: user?.name || "operator",
+        });
+        row = r.result;
+        toast.success(`✓ ${ex.name} saxlanıldı və kilidləndi`);
+      }
+      setMeta(prev => ({ ...prev, [ex.id]: { resultId: row.id, locked: !!row.locked, saved: true } }));
       focusNextUnsaved(index);
     } catch (err) {
       toast.error(err.message);
@@ -322,6 +366,7 @@ export default function WorkstationPage() {
     const nextNo = (Number(sNomer) || 0) + 1;
     setStudent(null);
     setInputs({}); setMeta({}); setAppealInputs({}); setAppealMeta({});
+    setAppealDecisions({});
     setUnlocked(false); editPwRef.current = null;
     setSNomer(String(nextNo));
     setTimeout(() => sNomerRef.current?.focus(), 100);
@@ -422,7 +467,7 @@ export default function WorkstationPage() {
 
           {isAppeal && (
             <div className="mt-4 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-soft px-4 py-2">
-              Apellyasiya rejimi — daxil etdiyiniz dəyər əsas nəticəni dəyişmir, ayrıca apellyasiya qiyməti kimi saxlanılır və nəticələrdə narıncı göstərilir.
+              Apellyasiya rejimi — hər hərəkət üçün «Dəyişmədi» (köhnə nəticə saxlanılır) və ya «Dəyişdi» (yeni dəyər admin parolu ilə qeyd edilir) seçin.
             </div>
           )}
 
@@ -443,6 +488,8 @@ export default function WorkstationPage() {
                   autoFocus={i === 0}
                   appeal={isAppeal}
                   referenceText={isAppeal ? refText(ex) : null}
+                  appealDecision={isAppeal ? (appealDecisions[ex.id] ?? null) : null}
+                  onAppealDecisionChange={(d) => setAppealDecisions(p => ({ ...p, [ex.id]: d }))}
                   onChange={(v)        => setActiveInput(ex.id, { rawValue: v })}
                   onRefuseChange={(v)  => setActiveInput(ex.id, { isRefused: v })}
                   onNotesChange={(v)   => setActiveInput(ex.id, { notes: v })}
