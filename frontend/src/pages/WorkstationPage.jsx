@@ -7,6 +7,10 @@
 // Apellyasiya rejimində hər hərəkət üçün "Dəyişdi / Dəyişmədi" seçimi var:
 //   • Dəyişmədi → köhnə (əsas) nəticə apellyasiya kimi saxlanılır, parol istənmir.
 //   • Dəyişdi   → yeni dəyər daxil edilir, saxlamadan əvvəl admin (redaktə) parolu istənir.
+//
+// KOMİSSİYA quraşdırmada və ya axtarışda iştirak ETMİR.
+//   s_nomer imtahan daxilində unikal olduğu üçün lookup yalnız examId + sNomer ilə işləyir.
+//   Hərəkətlər imtahana uyğun seçilir (SetupPage Addım 3 — imtahanın hərəkətlərinin birləşməsi).
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSetup } from "../context/SetupContext.jsx";
@@ -153,7 +157,7 @@ export default function WorkstationPage() {
     editPwRef.current = null;
     try {
       const s = await api.get(
-        `/students/lookup?examId=${setup.exam.id}&commissionNo=${setup.commission.commission_no}&sNomer=${sNomer}`
+        `/students/lookup?examId=${setup.exam.id}&sNomer=${sNomer}`
       );
       const existing = await api.get(`/students/${s.id}/results`);
       setStudent(s);
@@ -390,7 +394,7 @@ export default function WorkstationPage() {
     <>
       <PageHeader
         title="Stansiya"
-        subtitle={`№${setup.commission.commission_no} · ${setup.exam.name} · ${exerciseCount} hərəkət`}
+        subtitle={`${setup.exam.name} · ${exerciseCount} hərəkət`}
         right={unlocked
           ? <span className="text-xs px-3 py-1.5 rounded-soft bg-moss-400/20 text-moss-700 border border-moss-400/40">🔓 Redaktə açıqdır</span>
           : null}
@@ -460,6 +464,10 @@ export default function WorkstationPage() {
                   <div className="font-medium text-ink-900 mt-0.5">
                     {student.kodixtisas} {student.ixtisas_name && `· ${student.ixtisas_name}`}
                   </div>
+                </div>
+                <div>
+                  <div className="text-ink-400 text-xs uppercase">Komissiya</div>
+                  <div className="font-medium text-ink-900 mt-0.5">№{student.commission_no}</div>
                 </div>
               </div>
             </div>

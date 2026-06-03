@@ -24,25 +24,6 @@ async function seedAdmin() {
   console.log("  ✔ admin/admin123 əlavə edildi (PRODUKSİYAYA ÇIXARMADAN ƏVVƏL DƏYİŞ!)");
 }
 
-async function seedSections() {
-  const row = await dbGet("SELECT COUNT(*) AS n FROM sections");
-  if (row && row.n > 0) {
-    console.log("  ✓ sections-da artıq qeydlər var, ötürülür");
-    return;
-  }
-  const sections = [
-    { id: 1, name: "Bölmə 1 — Bədən tərbiyəsi",  sect_code: "BT" },
-    { id: 2, name: "Bölmə 2 — Hərbi hazırlıq",   sect_code: "HH" },
-    { id: 3, name: "Bölmə 3 — Ekspert qiyməti",  sect_code: "EQ" },
-  ];
-  for (const s of sections) {
-    await dbRun(
-      "INSERT INTO sections (id, name, sect_code) VALUES (?, ?, ?)",
-      [s.id, s.name, s.sect_code]
-    );
-  }
-  console.log(`  ✔ ${sections.length} bölmə əlavə edildi`);
-}
 
 async function seedExercises() {
   const row = await dbGet("SELECT COUNT(*) AS n FROM exercises");

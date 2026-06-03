@@ -1,11 +1,13 @@
 // src/context/SetupContext.jsx
 //
 // Stansiya iş sessiyasının vəziyyəti:
-//   • section, exam, commission, exercises (stansiya hərəkətləri)
+//   • section, exam, exercises (stansiya hərəkətləri)
 //   • sessionStorage-da saxlanılır ki, brauzer yenilənəndə də qalsın
 //
-// Kompleks "AdminSetupPage" prosesindən keçdikdən sonra bu vəziyyət dolur,
-// işçi səhifə onu istifadə edir.
+// QEYD: komissiya artıq quraşdırma vəziyyətinin bir hissəsi DEYİL.
+//   Hərəkətlər imtahana bağlı bütün komissiyaların birləşməsindən gəlir;
+//   konkret komissiya isə iş səhifəsində (tələbə axtarışında) seçilir,
+//   çünki s_nomer yalnız komissiya daxilində unikaldır.
 
 import { createContext, useContext, useEffect, useState } from "react";
 
@@ -15,7 +17,6 @@ const STORAGE_KEY = "examstation_setup";
 const emptyState = {
   section: null,        // { id, name, sect_code }
   exam: null,           // { id, name, exam_date, ... }
-  commission: null,     // { id, commission_no, name, section_id }
   exercises: [],        // [{ id, code, name, unit, direction, display_order }]
 };
 
@@ -39,7 +40,6 @@ export function SetupProvider({ children }) {
   const isReady = !!(
     setup.section &&
     setup.exam &&
-    setup.commission &&
     setup.exercises &&
     setup.exercises.length > 0
   );
@@ -47,11 +47,10 @@ export function SetupProvider({ children }) {
   const value = {
     setup,
     isReady,
-    setSection:    (s) => setSetup(st => ({ ...st, section: s, exam: null, commission: null, exercises: [] })),
-    setExam:       (e) => setSetup(st => ({ ...st, exam: e, commission: null, exercises: [] })),
-    setCommission: (c) => setSetup(st => ({ ...st, commission: c, exercises: [] })),
+    setSection:    (s)  => setSetup(st => ({ ...st, section: s, exam: null, exercises: [] })),
+    setExam:       (e)  => setSetup(st => ({ ...st, exam: e, exercises: [] })),
     setExercises:  (xs) => setSetup(st => ({ ...st, exercises: xs })),
-    reset:         () => setSetup(emptyState),
+    reset:         ()   => setSetup(emptyState),
   };
 
   return <SetupContext.Provider value={value}>{children}</SetupContext.Provider>;

@@ -1,12 +1,14 @@
 // src/pages/SetupPage.jsx
 //
-// AdminSetup səhifəsi — 4 mərhələli sehrbaz:
+// AdminSetup səhifəsi — 3 mərhələli sehrbaz:
 //   1) Bölmə      → /sections
 //   2) İmtahan    → /exams?sectionId=X
-//   3) Komissiya  → /sections/:id/commissions
-//   4) Hərəkətlər → /commissions/:no/exercises
-//                   (yalnız bu komissiyaya təyin edilmiş hərəkətlər siyahıda görsənir,
-//                    operator multi-select edir)
+//   3) Hərəkətlər → /exams/:id/exercises
+//                   (imtahana bağlı BÜTÜN komissiyaların hərəkətlərinin
+//                    təkrarsız birləşməsi göstərilir, operator multi-select edir)
+//
+// Komissiya artıq burada seçilmir — o, iş səhifəsində tələbə axtarışı zamanı
+// seçilir (s_nomer yalnız komissiya daxilində unikal olduğu üçün).
 //
 // Mərhələdən-mərhələyə keçid yalnız əvvəlki dolduqdan sonra mümkündür.
 // Hər addımda əvvəlki dəyər dəyişdirilərsə, sonrakı seçimlər sıfırlanır.
@@ -51,26 +53,23 @@ function Step({ n, title, hint, active, done, children }) {
 export default function SetupPage() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { lockStation } = useAuth();   
-  const { setup, setSection, setExam, setExercises, setCommission, reset } = useSetup();
+  const { lockStation } = useAuth();
+  const { setup, setSection, setExam, setExercises, reset } = useSetup();
 
   const [sections, setSections] = useState([]);
   const [exams, setExams] = useState([]);
-  const [commissions, setCommissions] = useState([]);
   const [allowedExercises, setAllowedExercises] = useState([]);
-  const [loading, setLoading] = useState({ s: true, e: false, c: false, x: false });
+  const [loading, setLoading] = useState({ s: true, e: false, x: false });
 
   // Mərhələ statusu
   const stepDone = {
     1: !!setup.section,
     2: !!setup.exam,
-    3: !!setup.commission,
-    4: setup.exercises.length > 0,
+    3: setup.exercises.length > 0,
   };
   const activeStep = !setup.section ? 1
                     : !setup.exam ? 2
-                    : !setup.commission ? 3
-                    : 4;
+                    : 3;
 
   // 1. Bölmələri yüklə
   useEffect(() => {
@@ -90,27 +89,16 @@ export default function SetupPage() {
       .finally(() => setLoading(l => ({ ...l, e: false })));
   }, [setup.section?.id]);
 
-  // 3. İmtahan seçiləndə KOMİSSİYALARı bu imtahana aid pivot-dan yüklə
-  //    (artıq bölmə üzrə yox — istifadəçinin tələbinə görə imtahana
-  //     təyin olunmuş komissiyalar)
+  // 3. İmtahan seçiləndə bu imtahanın bütün komissiyalarındakı hərəkətlərin
+  //    təkrarsız birləşməsini yüklə
   useEffect(() => {
-    if (!setup.exam) { setCommissions([]); return; }
-    setLoading(l => ({ ...l, c: true }));
-    api.get(`/exams/${setup.exam.id}/commissions`)
-      .then(setCommissions)
-      .catch(err => toast.error("Komissiyalar yüklənmədi: " + err.message))
-      .finally(() => setLoading(l => ({ ...l, c: false })));
-  }, [setup.exam?.id]);
-
-  // 4. Komissiya seçiləndə icazə verilən hərəkətləri yüklə
-  useEffect(() => {
-    if (!setup.commission) { setAllowedExercises([]); return; }
+    if (!setup.exam) { setAllowedExercises([]); return; }
     setLoading(l => ({ ...l, x: true }));
-    api.get(`/commissions/${setup.commission.commission_no}/exercises`)
+    api.get(`/exams/${setup.exam.id}/exercises`)
       .then(setAllowedExercises)
       .catch(err => toast.error("Hərəkətlər yüklənmədi: " + err.message))
       .finally(() => setLoading(l => ({ ...l, x: false })));
-  }, [setup.commission?.commission_no]);
+  }, [setup.exam?.id]);
 
   // Hərəkət toggle
   const toggleExercise = (ex) => {
@@ -125,8 +113,8 @@ export default function SetupPage() {
   const selectedIds = useMemo(() => new Set(setup.exercises.map(e => e.id)), [setup.exercises]);
 
   const start = () => {
-    if (!stepDone[4]) return toast.warn("Ən azı bir hərəkət seçin");
-    lockStation();  
+    if (!stepDone[3]) return toast.warn("Ən azı bir hərəkət seçin");
+    lockStation();
     navigate("/");
   };
 
@@ -182,37 +170,15 @@ export default function SetupPage() {
         </Step>
       )}
 
-      {/* ── Addım 3: Komissiya ── */}
+      {/* ── Addım 3: Hərəkətlər (imtahanın bütün komissiyalarının birləşməsi) ── */}
       {stepDone[2] && (
-        <Step n={3} title="Komissiya seçimi" hint="Bu stansiya hansı komissiyanı qəbul edir?"
-              active={activeStep === 3} done={stepDone[3]}>
-          {loading.c ? <Spinner /> : commissions.length === 0 ? (
-            <EmptyState title="Bu imtahana komissiya təyin olunmayıb"
-                        hint="Admin panelindən 'Exam ↔ Commission' fayl idxalı və ya tələbə fayl idxalı (komissiyanı avtomatik qoşur) lazımdır" />
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {commissions.map(c => (
-                <Chip key={c.id}
-                      active={setup.commission?.id === c.id}
-                      onClick={() => setCommission(c)}>
-                  <span className="font-mono">№{c.commission_no}</span>
-                  <span className="ml-2">{c.name}</span>
-                </Chip>
-              ))}
-            </div>
-          )}
-        </Step>
-      )}
-
-      {/* ── Addım 4: Hərəkətlər (yalnız bu komissiyaya icazə verilənlər) ── */}
-      {stepDone[3] && (
-        <Step n={4}
+        <Step n={3}
               title="Stansiyada keçiriləcək hərəkətlər"
-              hint={`Yalnız №${setup.commission.commission_no} komissiyasına təyin edilmiş hərəkətlər siyahıda göstərilir`}
-              active={activeStep === 4} done={stepDone[4]}>
+              hint={`"${setup.exam.name}" imtahanındakı bütün komissiyaların hərəkətləri (təkrarsız) siyahıda göstərilir`}
+              active={activeStep === 3} done={stepDone[3]}>
           {loading.x ? <Spinner /> : allowedExercises.length === 0 ? (
-            <EmptyState title="Bu komissiyaya hərəkət təyin edilməyib"
-                        hint="Admin səhifəsindən commission_exercises faylını idxal edin" />
+            <EmptyState title="Bu imtahana hərəkət təyin edilməyib"
+                        hint="Admin səhifəsindən commission_exercises faylını idxal edin və komissiyaları bu imtahana bağlayın" />
           ) : (
             <>
               <div className="flex flex-wrap gap-2 mb-4">
@@ -231,7 +197,7 @@ export default function SetupPage() {
                 <div className="text-sm text-ink-600">
                   Seçilmiş: <strong>{setup.exercises.length}</strong> / {allowedExercises.length}
                 </div>
-                <button className="btn-primary" disabled={!stepDone[4]} onClick={start}>
+                <button className="btn-primary" disabled={!stepDone[3]} onClick={start}>
                   Stansiyanı başlat →
                 </button>
               </div>

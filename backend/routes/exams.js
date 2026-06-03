@@ -77,7 +77,8 @@ router.delete("/:id", async (req, res) => {
 });
 
 // GET /exams/:id/commissions
-//   bu imtahanda iştirak edən komissiyalar (SetupPage Step 3 üçün əsas mənbə)
+//   bu imtahanda iştirak edən komissiyalar
+//   (iş səhifəsində tələbə axtarışı üçün komissiya seçicisini doldurur)
 router.get("/:id/commissions", async (req, res) => {
   try {
     const rows = await dbAll(
@@ -89,6 +90,40 @@ router.get("/:id/commissions", async (req, res) => {
       [req.params.id]
     );
     res.json(rows);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /exams/:id/exercises
+//   bu imtahandakı BÜTÜN komissiyaların hərəkətlərinin təkrarsız birləşməsi.
+//   SetupPage Addım 3-də stansiya hərəkətlərinin mənbəyidir — beləliklə
+//   eyni hərəkət (məs. tullanma) bir neçə komissiyada olsa belə siyahıda
+//   yalnız bir dəfə görünür və operator stansiyanı yenidən qurmadan
+//   həmin imtahanın istənilən komissiyasını qəbul edə bilir.
+router.get("/:id/exercises", async (req, res) => {
+  try {
+    const rows = await dbAll(
+      `SELECT e.id, e.code, e.name, e.unit, e.direction,
+              MIN(ce.display_order) AS ce_order, e.display_order AS ex_order, e.notes
+       FROM exam_commissions ec
+       JOIN commission_exercises ce ON ce.commission_no = ec.commission_no
+       JOIN exercises e ON e.id = ce.exercise_id
+       WHERE ec.exam_id = ?
+       GROUP BY e.id
+       ORDER BY ce_order, ex_order, e.id`,
+      [req.params.id]
+    );
+    // display_order sahəsini frontend gözlədiyi adla qaytar
+    res.json(rows.map(r => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      unit: r.unit,
+      direction: r.direction,
+      display_order: r.ce_order ?? r.ex_order ?? 0,
+      notes: r.notes,
+    })));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -68,17 +68,17 @@ router.get("/", async (req, res) => {
 //   stansiya səhifəsində sıra № daxil olunanda çağırılır
 router.get("/lookup", async (req, res) => {
   try {
-    const { examId, commissionNo, sNomer } = req.query;
-    if (!examId || !commissionNo || !sNomer) {
-      return res.status(400).json({ message: "examId, commissionNo, sNomer tələb olunur" });
+    const { examId, sNomer } = req.query;
+    if (!examId || !sNomer) {
+      return res.status(400).json({ message: "examId, sNomer tələb olunur" });
     }
     const row = await dbGet(
       `SELECT id, exam_id, s_nomer, is_n, surname, name, father_name,
               birth_date, gender, qrup_num, kodixtisas, ixtisas_name,
               alt_nov, commission_no, photo_path
        FROM students
-       WHERE exam_id = ? AND commission_no = ? AND s_nomer = ?`,
-      [examId, commissionNo, sNomer]
+       WHERE exam_id = ? AND s_nomer = ?`,
+      [examId, sNomer]
     );
     if (!row) return res.status(404).json({ message: "Bu sıra nömrəsi ilə tələbə tapılmadı" });
     res.json(row);

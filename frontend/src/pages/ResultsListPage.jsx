@@ -13,15 +13,18 @@ import { useToast } from "../context/ToastContext.jsx";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, Spinner, EmptyState, Toolbar } from "../components/ui/Primitives.jsx";
 import { fullName, formatRaw } from "../lib/format.js";
+import { useSetup } from "../context/SetupContext.jsx";
 
 export default function ResultsListPage() {
   const toast = useToast();
 
   const [exams, setExams] = useState([]);
   const [commissions, setCommissions] = useState([]);
-  const [examId, setExamId] = useState("");
-  const [commissionNo, setCommissionNo] = useState("");
+  const {setup} = useSetup();
+  const [examId, setExamId] = useState(setup.exam?.id ? String(setup.exam.id) : "");
+  const [commissionNo, setCommissionNo] = useState(setup.commission?.commission_no || "");
   const [search, setSearch] = useState("");
+  
 
   const [students, setStudents] = useState([]);
   const [results, setResults] = useState([]);
