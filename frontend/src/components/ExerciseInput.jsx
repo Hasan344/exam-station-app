@@ -17,6 +17,11 @@
 //
 // Bütün number inputlar:
 //   • mouse təkəri ilə fokuslandıqda dəyər təsadüfən dəyişməsin deyə wheel bloklanır.
+//
+// KOMPAKT REJIM (Plan A):
+//   • total <= 2 olduqda kart hündürlüyü azalır (padding, başlıq, boşluqlar, qeyd
+//     sahəsi 2 sətir) — operator 1–2 hərəkətdə səhifəni scroll etmədən işləsin.
+//   • 4 hərəkətdə əvvəlki ölçülər qalır, scroll təbiidir.
 
 import { useEffect, useRef } from "react";
 import { unitShort, unitPlaceholder, parseMinSec, secondsToMinSec } from "../lib/format.js";
@@ -47,6 +52,10 @@ export default function ExerciseInput({
   const readOnly = locked && !unlocked;
   const isMinSec = exercise.unit === "min_sec";
   const isScore  = exercise.unit === "score";   // yalnız tam ədəd
+
+  // Kompakt rejim: 1–2 hərəkət olduqda kartı sıxaraq səhifəni
+  // scroll etmədən ekrana sığdırmaq üçün.
+  const compact = total <= 2;
 
   useEffect(() => {
     if (autoFocus && !readOnly) setTimeout(() => inputRef.current?.focus(), 50);
@@ -83,7 +92,6 @@ export default function ExerciseInput({
     onChange(raw);
   };
 
-
   // Apellyasiyada dəyər/imtina yalnız "Dəyişdi" seçimində aktivdir.
   const appealLocksInputs = appeal && appealDecision !== "changed";
   const refuseDisabled = readOnly || appealLocksInputs;
@@ -107,15 +115,15 @@ export default function ExerciseInput({
     : (readOnly ? "bg-ink-100/60 border-ink-300" : "");
 
   return (
-    <div className={`card p-5 transition-colors ${cardAccent} ${isRefused && !readOnly && !appeal ? "bg-rust-400/5 border-rust-400/30" : ""}`}>
-      <div className="flex items-start justify-between mb-3">
+    <div className={`card ${compact ? "p-4" : "p-5"} transition-colors ${cardAccent} ${isRefused && !readOnly && !appeal ? "bg-rust-400/5 border-rust-400/30" : ""}`}>
+      <div className={`flex items-start justify-between ${compact ? "mb-2" : "mb-3"}`}>
         <div>
           <div className="flex items-center gap-2 text-xs text-ink-500 uppercase tracking-wider">
             <span>{index + 1}/{total}</span>
             <span>·</span>
             <span>{exercise.code}</span>
           </div>
-          <h3 className="font-display text-xl text-ink-900 mt-1 flex items-center gap-2">
+          <h3 className={`font-display ${compact ? "text-lg" : "text-xl"} text-ink-900 mt-1 flex items-center gap-2`}>
             {exercise.name}
             {appeal && (
               <span className="text-xs font-sans px-2 py-0.5 rounded-soft bg-orange-100 text-orange-700 border border-orange-300">
@@ -151,7 +159,7 @@ export default function ExerciseInput({
 
       {/* Apellyasiya: Dəyişdi / Dəyişmədi seçimi */}
       {appeal && !readOnly && (
-        <div className="mb-3 inline-flex rounded-soft border border-orange-300 overflow-hidden">
+        <div className={`${compact ? "mb-2" : "mb-3"} inline-flex rounded-soft border border-orange-300 overflow-hidden`}>
           <button
             type="button"
             onClick={() => onAppealDecisionChange?.("unchanged")}
@@ -178,12 +186,12 @@ export default function ExerciseInput({
       )}
 
       {appeal && referenceText != null && (
-        <div className="mb-3 text-sm text-ink-500">
+        <div className={`${compact ? "mb-2" : "mb-3"} text-sm text-ink-500`}>
           Əsas nəticə: <span className="font-mono text-ink-700">{referenceText}</span>
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className={`grid grid-cols-1 md:grid-cols-3 ${compact ? "gap-3" : "gap-4"}`}>
         <div className="md:col-span-2">
           <label className="label">
             {appeal ? "Apellyasiya dəyəri" : "Dəyər"}
@@ -242,7 +250,7 @@ export default function ExerciseInput({
         <div>
           <label className="label">Qeyd (ixtiyari)</label>
           <textarea
-            rows={3}
+            rows={compact ? 2 : 3}
             disabled={readOnly}
             value={notes ?? ""}
             onChange={(e) => onNotesChange(e.target.value)}
@@ -252,7 +260,7 @@ export default function ExerciseInput({
         </div>
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-3">
+      <div className={`${compact ? "mt-3" : "mt-4"} flex items-center justify-end gap-3`}>
         {readOnly ? (
           <>
             <span className="text-sm text-ink-500">

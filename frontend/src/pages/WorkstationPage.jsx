@@ -378,13 +378,11 @@ export default function WorkstationPage() {
   const exerciseCount = setup.exercises.length;
   const isAppeal = mode === "appeal";
 
-  // Apellyasiya rejimində əsas nəticə referansı (mətn)
   const refText = (ex) => {
     const r = inputs[ex.id];
     if (!r) return "—";
     if (r.isRefused) return "İmtina";
     if (r.rawValue === "" || r.rawValue == null) return "—";
-    // min_sec üçün rawValue artıq "2.24" mətnidir → birbaşa göstər
     if (ex.unit === "min_sec") return r.rawValue;
     return `${r.rawValue} ${unitShort(ex.unit)}`;
   };
