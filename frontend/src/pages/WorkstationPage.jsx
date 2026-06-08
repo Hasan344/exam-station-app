@@ -43,7 +43,7 @@ function StudentPhoto({ studentId }) {
   useEffect(() => { setHasError(false); }, [studentId]);
   if (hasError || !studentId) {
     return (
-      <div className="w-32 h-40 rounded-soft bg-ink-100 border border-ink-200 flex items-center justify-center text-ink-300 text-xs text-center px-2">
+      <div className="w-48 h-60 rounded-soft bg-ink-100 border border-ink-200 flex items-center justify-center text-ink-300 text-xs text-center px-2">
         Şəkil yoxdur
       </div>
     );
@@ -53,7 +53,7 @@ function StudentPhoto({ studentId }) {
       src={`/students/${studentId}/photo?ts=${studentId}`}
       alt="Tələbə şəkli"
       onError={() => setHasError(true)}
-      className="w-32 h-40 object-cover rounded-soft border border-ink-200 bg-ink-50"
+      className="w-48 h-60 object-cover rounded-soft border border-ink-200 bg-ink-50"
     />
   );
 }
@@ -149,7 +149,7 @@ export default function WorkstationPage() {
   }, [setup.exercises]);
 
   const lookupStudent = async () => {
-    if (!sNomer) return toast.warn("Sıra nömrəsi daxil edin");
+    if (!sNomer) return toast.warn("Qol nömrəsi daxil edin");
     setLoadingStudent(true);
     setStudent(null);
     setUnlocked(false);
@@ -391,13 +391,7 @@ export default function WorkstationPage() {
 
   return (
     <>
-      <PageHeader
-        title="Stansiya"
-        subtitle={`${setup.exam.name} · ${exerciseCount} hərəkət`}
-        right={unlocked
-          ? <span className="text-xs px-3 py-1.5 rounded-soft bg-moss-400/20 text-moss-700 border border-moss-400/40">🔓 Redaktə açıqdır</span>
-          : null}
-      />
+      
 
       {/* Rejim seçimi */}
       <div className="mb-4 inline-flex rounded-soft border border-ink-200 overflow-hidden">
@@ -415,10 +409,10 @@ export default function WorkstationPage() {
         </button>
       </div>
 
-      <Card title="Tələbə axtarışı" subtitle="Sıra nömrəsini daxil edin və Enter basın">
+      <Card title="Tələbə axtarışı" subtitle="Qol nömrəsini daxil edin və Enter basın">
         <div className="flex items-end gap-3">
           <div className="flex-1 max-w-xs">
-            <label className="label">Sıra №</label>
+            <label className="label">Qol №</label>
             <input
               ref={sNomerRef}
               type="number"
@@ -511,7 +505,7 @@ export default function WorkstationPage() {
 
       {!student && !loadingStudent && (
         <Card className="mt-6">
-          <EmptyState icon="◯" title="Tələbə seçilməyib" hint="Yuxarıda sıra nömrəsini daxil edib Enter basın" />
+          <EmptyState icon="◯" title="Tələbə seçilməyib" hint="Yuxarıda qol nömrəsini daxil edib Enter basın" />
         </Card>
       )}
 
