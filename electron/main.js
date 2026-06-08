@@ -11,7 +11,7 @@
 //   • macOS:   ~/Library/Application Support/ExamStation/database.db
 //   • Linux:   ~/.config/ExamStation/database.db
 
-const { app, BrowserWindow, Menu, shell, dialog } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { fork } = require("child_process");
@@ -27,6 +27,7 @@ function resolveBackendEntry() {
   }
   const candidates = [
     path.join(process.resourcesPath, "app.asar.unpacked", "backend", "server.js"),
+    path.join(process.resourcesPath, "app.asar", "backend", "server.js"),
     path.join(process.resourcesPath, "backend", "server.js"),
     path.join(__dirname, "..", "backend", "server.js"),
   ];
@@ -86,15 +87,21 @@ function startBackend() {
       PORT: String(PORT),
       DB_PATH: getUserDbPath(),
       USER_DATA_DIR: app.getPath("userData"),
+      // ELECTRON_RUN_AS_NODE ilə forklanan prosesdə process.resourcesPath
+      // tanımsız ola bilər — frontend dist-i tapmaq üçün env ilə ötürürük.
+      RESOURCES_PATH: process.resourcesPath,
       ELECTRON_RUN_AS_NODE: "1",
     },
-    cwd: path.dirname(entry),
+    // Paketlənmiş halda backend `app.asar` içindədir; `app.asar` real qovluq
+    // deyil, ona görə cwd kimi real `resources` qovluğunu veririk (ENOENT-in qarşısı).
+    cwd: IS_DEV ? path.dirname(entry) : process.resourcesPath,
     silent: false,
     stdio: ["ignore", "pipe", "pipe", "ipc"],
   });
 
   backendProcess.stdout?.on("data", (d) => console.log("[backend]", d.toString().trim()));
   backendProcess.stderr?.on("data", (d) => console.error("[backend ERR]", d.toString().trim()));
+  backendProcess.on("error", (e) => console.error("[backend fork-error]", e));
   backendProcess.on("exit", (code) => {
     console.log(`[backend] çıxdı kod=${code}`);
     backendProcess = null;
@@ -133,8 +140,12 @@ function createWindow() {
 
   mainWindow.once("ready-to-show", () => mainWindow.show());
 
+  // Yalnız HƏQİQİ xarici (http/https, localhost olmayan) linkləri brauzerdə aç.
+  // İxrac/yükləmə linkləri (127.0.0.1) burada tutulmamalıdır ki, daxili
+  // `will-download` mexanizmi işləsin.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    const isLocal = url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost");
+    if (!isLocal) shell.openExternal(url);
     return { action: "deny" };
   });
 
@@ -151,6 +162,20 @@ function createWindow() {
   mainWindow.on("closed", () => { mainWindow = null; });
 }
 
+// ─────────── İxrac yükləmələri ───────────
+// Frontend `/exports/...` linkinə klik edəndə Electron `will-download`
+// hadisəsini tetikler. SavePath verilmədiyi üçün Electron "Farklı kaydet"
+// pəncərəsini göstərir; `done` dinləyicisi xəta halında bildirir.
+function setupDownloads() {
+  session.defaultSession.on("will-download", (event, item) => {
+    item.once("done", (_e, state) => {
+      if (state !== "completed") {
+        dialog.showErrorBox("İxrac yüklənmədi", `Hal: ${state}`);
+      }
+    });
+  });
+}
+
 // ─────────── Lifecycle ───────────
 app.whenReady().then(async () => {
   startBackend();
@@ -163,6 +188,7 @@ app.whenReady().then(async () => {
     return;
   }
 
+  setupDownloads();
   createWindow();
 
   app.on("activate", () => {

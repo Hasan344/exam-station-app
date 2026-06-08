@@ -3,11 +3,12 @@
 // Kiçik UI primitivləri — yığcam tək faylda saxlayırıq.
 
 export function PageHeader({ title, subtitle, right }) {
+  // Birbaşa gradient fon üzərində render olunur → ağ mətn
   return (
-    <div className="flex items-end justify-between mb-6 pb-4 border-b border-ink-200">
+    <div className="flex items-end justify-between mb-6 pb-4 border-b border-white/20">
       <div>
-        <h1 className="font-display text-3xl text-ink-900 leading-tight">{title}</h1>
-        {subtitle && <p className="text-sm text-ink-500 mt-1">{subtitle}</p>}
+        <h1 className="font-display text-3xl text-white leading-tight drop-shadow-sm">{title}</h1>
+        {subtitle && <p className="text-sm text-white/70 mt-1">{subtitle}</p>}
       </div>
       {right}
     </div>
@@ -18,14 +19,14 @@ export function Card({ title, subtitle, children, footer, className = "" }) {
   return (
     <div className={`card overflow-hidden ${className}`}>
       {(title || subtitle) && (
-        <div className="px-5 py-4 border-b border-ink-200 bg-paper-100">
+        <div className="px-5 py-4 border-b border-ink-200/70 bg-white/40">
           {title    && <h2 className="font-display text-lg text-ink-800">{title}</h2>}
           {subtitle && <p className="text-xs text-ink-500 mt-0.5">{subtitle}</p>}
         </div>
       )}
       <div className="p-5">{children}</div>
       {footer && (
-        <div className="px-5 py-3 border-t border-ink-200 bg-paper-100">{footer}</div>
+        <div className="px-5 py-3 border-t border-ink-200/70 bg-white/40">{footer}</div>
       )}
     </div>
   );
@@ -43,8 +44,8 @@ export function EmptyState({ icon = "∅", title, hint }) {
 
 export function Spinner({ label = "Yüklənir..." }) {
   return (
-    <div className="flex items-center gap-3 text-sm text-ink-500 py-8 justify-center">
-      <div className="w-4 h-4 border-2 border-moss-400 border-t-transparent rounded-full animate-spin" />
+    <div className="flex items-center gap-3 text-sm text-white/80 py-8 justify-center">
+      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
       <span>{label}</span>
     </div>
   );
@@ -79,7 +80,7 @@ export function FieldRow({ label, children, hint }) {
 
 export function Toolbar({ children }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-paper-100 border border-ink-200 rounded-soft">
+    <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-white/70 backdrop-blur-sm border border-white/60 rounded-soft">
       {children}
     </div>
   );

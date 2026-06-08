@@ -15,8 +15,11 @@ const IS_PROD = process.env.NODE_ENV === "production";
 // ─────────── Frontend dist-i tap ───────────
 function resolveFrontendDist() {
   const candidates = [];
-  if (process.resourcesPath) {
-    candidates.push(path.join(process.resourcesPath, "frontend", "dist"));
+  // ELECTRON_RUN_AS_NODE ilə forklanan prosesdə process.resourcesPath
+  // tanımsız ola bilər; ona görə əvvəlcə main.js-dən gələn env-ə baxırıq.
+  const rp = process.env.RESOURCES_PATH || process.resourcesPath;
+  if (rp) {
+    candidates.push(path.join(rp, "frontend", "dist"));
   }
   candidates.push(path.resolve(__dirname, "..", "frontend", "dist"));
 

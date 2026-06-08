@@ -44,12 +44,13 @@ export const api = {
     fd.append("file", file);
     return fetch(path, { method: "POST", body: fd }).then(handle);
   },
-  /** Brauzerin yükləməsini başlat */
+  /** Brauzerin/Electron-un yükləməsini başlat.
+   *  Qeyd: `target="_blank"` İŞLƏDİLMİR — əks halda Electron-da link
+   *  setWindowOpenHandler → shell.openExternal-a düşür və fayl yüklənmir. */
   download(path, filename) {
     const a = document.createElement("a");
     a.href = path;
-    if (filename) a.download = filename;
-    a.target = "_blank";
+    a.download = filename || "";
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

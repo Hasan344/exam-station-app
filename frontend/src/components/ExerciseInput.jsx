@@ -11,6 +11,12 @@
 //   • input type="text" olur (number "2.24"-ü onluq sayır, biz mm.ss istəyirik)
 //   • operator "2.24" yazır → altında canlı "= 2:24" göstərilir
 //   • valideyn komponent saxlayanda parseMinSec ilə saniyəyə çevirir
+//
+// score vahidi:
+//   • yalnız TAM ədəd (kəsr hissə yoxdur) — step="1", "." "," "e" simvolları bloklanır.
+//
+// Bütün number inputlar:
+//   • mouse təkəri ilə fokuslandıqda dəyər təsadüfən dəyişməsin deyə wheel bloklanır.
 
 import { useEffect, useRef } from "react";
 import { unitShort, unitPlaceholder, parseMinSec, secondsToMinSec } from "../lib/format.js";
@@ -40,16 +46,43 @@ export default function ExerciseInput({
   const inputRef = useRef(null);
   const readOnly = locked && !unlocked;
   const isMinSec = exercise.unit === "min_sec";
+  const isScore  = exercise.unit === "score";   // yalnız tam ədəd
 
   useEffect(() => {
     if (autoFocus && !readOnly) setTimeout(() => inputRef.current?.focus(), 50);
   }, [autoFocus, readOnly]);
 
+  // Mouse təkəri ilə number input-un dəyərini dəyişməsini blokla.
+  // React-in onWheel-ı passiv listener kimi qeydiyyatdan keçir → preventDefault işləmir,
+  // ona görə native listener-i { passive: false } ilə qoşuruq. Fokus itmir.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    const stopWheel = (e) => {
+      if (document.activeElement === el) e.preventDefault();
+    };
+    el.addEventListener("wheel", stopWheel, { passive: false });
+    return () => el.removeEventListener("wheel", stopWheel);
+  }, []);
+
   const handleKey = (e) => {
-    if (e.key === "Enter") { e.preventDefault(); if (!readOnly && !saveDisabled) onSave?.(); }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (!readOnly && !saveDisabled) onSave?.();
+      return;
+    }
+    // score: yalnız tam ədəd — onluq ayırıcı və elmi format simvollarını blokla
+    if (isScore && ["e", "E", "+", "-", ".", ","].includes(e.key)) {
+      e.preventDefault();
+    }
   };
 
-  const directionLabel = exercise.direction === 1 ? "az = yaxşı" : "çox = yaxşı";
+  // score üçün yapışdırma/daxiletmədə rəqəm olmayan simvolları at
+  const handleChange = (raw) => {
+    if (isScore) raw = raw.replace(/[^\d]/g, "");
+    onChange(raw);
+  };
+
 
   // Apellyasiyada dəyər/imtina yalnız "Dəyişdi" seçimində aktivdir.
   const appealLocksInputs = appeal && appealDecision !== "changed";
@@ -81,8 +114,6 @@ export default function ExerciseInput({
             <span>{index + 1}/{total}</span>
             <span>·</span>
             <span>{exercise.code}</span>
-            <span>·</span>
-            <span>{directionLabel}</span>
           </div>
           <h3 className="font-display text-xl text-ink-900 mt-1 flex items-center gap-2">
             {exercise.name}
@@ -162,11 +193,11 @@ export default function ExerciseInput({
             <input
               ref={inputRef}
               type={isMinSec ? "text" : "number"}
-              step={isMinSec ? undefined : "0.01"}
-              inputMode="decimal"
+              step={isMinSec ? undefined : isScore ? "1" : "0.01"}
+              inputMode={isScore ? "numeric" : "decimal"}
               disabled={inputDisabled}
               value={isRefused ? "" : (value ?? "")}
-              onChange={(e) => onChange(e.target.value)}
+              onChange={(e) => handleChange(e.target.value)}
               onKeyDown={handleKey}
               placeholder={unitPlaceholder(exercise.unit)}
               className={`huge-input field flex-1 disabled:bg-ink-100 disabled:text-ink-400 ${minSecInvalid ? "border-rust-500 focus:ring-rust-300" : ""}`}

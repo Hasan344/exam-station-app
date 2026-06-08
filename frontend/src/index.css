@@ -4,7 +4,14 @@
 
 @layer base {
   html { font-family: theme('fontFamily.sans'); }
-  body { background: theme('colors.paper.DEFAULT'); }
+  body {
+    min-height: 100vh;
+    background-image: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    background-size: cover;
+    color: theme('colors.ink.800');
+  }
   input, button, textarea, select { font: inherit; }
   /* Number input arrow gizlət */
   input[type="number"]::-webkit-outer-spin-button,
@@ -18,26 +25,32 @@
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-soft
-           text-sm font-medium transition-colors disabled:opacity-50
+           text-sm font-medium transition-all disabled:opacity-50
            disabled:cursor-not-allowed select-none;
   }
+  /* Əsas düymə — indigo→bənövşəyi gradient (Results App üslubu) */
   .btn-primary {
-    @apply btn bg-moss-500 text-paper hover:bg-moss-600 active:bg-moss-700;
+    @apply btn text-white bg-gradient-to-r from-moss-500 to-clay-400
+           shadow-lg shadow-moss-600/30
+           hover:from-moss-600 hover:to-clay-500 active:opacity-90;
   }
   .btn-secondary {
-    @apply btn bg-ink-100 text-ink-800 hover:bg-ink-200 border border-ink-200;
+    @apply btn bg-white/70 text-ink-700 border border-white/70
+           hover:bg-white backdrop-blur-sm;
   }
   .btn-danger {
-    @apply btn bg-rust-500 text-paper hover:bg-rust-600;
+    @apply btn text-white bg-gradient-to-r from-rust-500 to-rust-600 hover:opacity-90;
   }
   .btn-ghost {
-    @apply btn text-ink-700 hover:bg-ink-100;
+    @apply btn text-ink-600 hover:bg-ink-900/5;
   }
+
+  /* Şüşə input */
   .field {
-    @apply block w-full bg-paper border border-ink-200 rounded-soft px-3 py-2
-           text-sm text-ink-800 placeholder-ink-300
+    @apply block w-full bg-white/70 border border-white/70 rounded-soft px-3 py-2
+           text-sm text-ink-800 placeholder-ink-400 backdrop-blur-sm
            focus:outline-none focus:ring-2 focus:ring-moss-300
-           focus:border-moss-400 transition-colors;
+           focus:border-moss-400 focus:bg-white transition-colors;
   }
   .field-mono { @apply field font-mono tabular-nums; }
   .label {
@@ -46,9 +59,12 @@
   .label-inline {
     @apply block text-xs uppercase tracking-wider font-medium text-ink-500 mb-1;
   }
+
+  /* Şüşə (glassmorphism) kart */
   .card {
-    @apply bg-paper border border-ink-200 rounded-soft shadow-card;
+    @apply bg-white/80 backdrop-blur-xl border border-white/60 rounded-soft shadow-card;
   }
+
   .pill {
     @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs
            font-medium bg-ink-100 text-ink-700 border border-ink-200;

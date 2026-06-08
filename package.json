@@ -47,8 +47,7 @@
     "asar": true,
     "forceCodeSigning": false,
     "asarUnpack": [
-      "backend/**/*",
-      "node_modules/sqlite3/**/*"
+      "**/node_modules/sqlite3/**/*"
     ],
     "files": [
       "electron/**/*",

@@ -3,65 +3,78 @@ export default {
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
-      // Sənayə-üslublu palitra: tünd yaşıl-boz əsas, isti vurğular,
-      // generic AI gradient-lərindən qaçırıq.
+      // Results App ilə uyğun palitra: indigo → bənövşəyi → çəhrayı.
+      // Token adları (ink/paper/moss/clay/rust/sun) saxlanılıb — bütün
+      // mövcud səhifələr avtomatik yeni rənglərə keçir.
       colors: {
+        // Mətn və tünd səthlər — soyuq slate
         ink: {
-          50:  "#f6f5f3",
-          100: "#e9e7e2",
-          200: "#cfccc4",
-          300: "#a8a397",
-          400: "#7a7466",
-          500: "#5a5547",
-          600: "#403c30",
-          700: "#2d2a21",
-          800: "#1d1b15",
-          900: "#11100c",
+          50:  "#f8fafc",
+          100: "#f1f5f9",
+          200: "#e2e8f0",
+          300: "#cbd5e1",
+          400: "#94a3b8",
+          500: "#64748b",
+          600: "#475569",
+          700: "#334155",
+          800: "#1e293b",
+          900: "#0f172a",
         },
+        // Açıq səthlər — ağ / çox açıq bənövşəyi
         paper: {
-          DEFAULT: "#faf8f3",
-          100:     "#f5f2ea",
-          200:     "#ebe6d8",
+          DEFAULT: "#ffffff",
+          100:     "#f5f3ff",
+          200:     "#ede9fe",
         },
+        // ƏSAS vurğu — indigo
         moss: {
-          50:  "#eef3ec",
-          100: "#d2dccc",
-          200: "#a5b89c",
-          300: "#7b9870",
-          400: "#587852",
-          500: "#3d5a3b",
-          600: "#2f4630",
-          700: "#243523",
-          800: "#1a261a",
+          50:  "#eef2ff",
+          100: "#e0e7ff",
+          200: "#c7d2fe",
+          300: "#a5b4fc",
+          400: "#818cf8",
+          500: "#6366f1",
+          600: "#4f46e5",
+          700: "#4338ca",
+          800: "#3730a3",
         },
+        // İkinci vurğu — bənövşəyi
         clay: {
-          100: "#ede2d0",
-          200: "#d6c2a3",
-          300: "#b89c6f",
-          400: "#946d3f",
-          500: "#6f4d28",
+          100: "#f3e8ff",
+          200: "#e9d5ff",
+          300: "#d8b4fe",
+          400: "#a855f7",
+          500: "#9333ea",
         },
+        // Təhlükə / imtina — rose
         rust: {
-          400: "#c25a3a",
-          500: "#a04525",
-          600: "#7d321a",
+          400: "#fb7185",
+          500: "#e11d48",
+          600: "#be123c",
         },
+        // Xəbərdarlıq — amber
         sun: {
-          400: "#e8b13a",
-          500: "#c8902a",
+          400: "#fbbf24",
+          500: "#f59e0b",
         },
+      },
+      backgroundImage: {
+        // Results App fonu
+        "brand-gradient":
+          "linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%)",
       },
       fontFamily: {
-  display: ['"IBM Plex Serif"', "Georgia", "serif"],
-  sans:    ['"IBM Plex Sans"', "system-ui", "sans-serif"],
-  mono:    ['"IBM Plex Mono"', "ui-monospace", "monospace"],
-},
+        display: ['"IBM Plex Serif"', "Georgia", "serif"],
+        sans:    ['"IBM Plex Sans"', "system-ui", "sans-serif"],
+        mono:    ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+      },
       boxShadow: {
-        card: "0 1px 0 rgba(29,27,21,0.04), 0 8px 24px -12px rgba(29,27,21,0.18)",
-        deep: "0 8px 40px -16px rgba(29,27,21,0.4)",
+        // Şüşə (glass) görünüşü üçün yumşaq, indigo çalarlı kölgələr
+        card: "inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 30px -12px rgba(79,70,229,0.35)",
+        deep: "0 24px 60px -20px rgba(79,70,229,0.55)",
       },
       borderRadius: {
-        soft: "10px",
+        soft: "14px",
       },
     },
   },

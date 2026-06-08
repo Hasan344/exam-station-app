@@ -110,7 +110,6 @@ export default function WorkstationPage() {
   const [appealDecisions, setAppealDecisions] = useState({});
 
   const [savingEx, setSavingEx] = useState(null);
-  const [savingAll, setSavingAll] = useState(false);
 
   const [unlocked, setUnlocked] = useState(false);
   const editPwRef = useRef(null);
@@ -506,24 +505,6 @@ export default function WorkstationPage() {
                 />
               </div>
             ))}
-          </div>
-
-          <div className="mt-6 sticky bottom-4 z-10 flex items-center justify-between p-4 bg-paper border border-ink-200 rounded-soft shadow-deep">
-            <div className="text-sm text-ink-600">
-              {isAppeal
-                ? "Apellyasiya qiymətlərini ayrıca «Saxla» ilə yadda saxlayın."
-                : "Hərəkətləri ayrıca «Saxla» və ya hamısını birlikdə yadda saxlayın."}
-            </div>
-            <div className="flex items-center gap-3">
-              <button className="btn-ghost px-6 py-3" onClick={goNext}>
-                Növbəti №{(Number(sNomer) || 0) + 1}
-              </button>
-              {!isAppeal && (
-                <button className="btn-primary px-8 py-3 text-lg" onClick={handleSaveAll} disabled={savingAll}>
-                  {savingAll ? "Saxlanılır..." : "Hamısını saxla"}
-                </button>
-              )}
-            </div>
           </div>
         </>
       )}

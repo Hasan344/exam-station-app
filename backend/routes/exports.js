@@ -15,6 +15,7 @@ const { dbAll } = require("../database");
 
 // İxrac sütunlarının sırası (şablonla eyni) — json_to_sheet header kimi verilir.
 const EXPORT_HEADER = [
+  "commission_no",
   "is_n",
   "exercise_code",
   "raw_value",
@@ -64,6 +65,7 @@ function appealDecision(r) {
 
 function flattenForExport(rows) {
   return rows.map(r => ({
+    commission_no:    r.commission_no,
     is_n:             r.is_n,
     exercise_code:    r.exercise_code,
     raw_value:        r.is_refused ? null : r.raw_value,
