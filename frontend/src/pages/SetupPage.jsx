@@ -2,7 +2,9 @@
 //
 // AdminSetup səhifəsi — 3 mərhələli sehrbaz:
 //   1) Bölmə      → /sections
+//      (yalnız bir bölmə varsa — seçimə ehtiyac yoxdur, avtomatik seçilir)
 //   2) İmtahan    → /exams?sectionId=X
+//      (tarix filtri ilə: yalnız imtahanı olan tarixlər; imtahanlar sətir kimi)
 //   3) Hərəkətlər → /exams/:id/exercises
 //                   (imtahana bağlı BÜTÜN komissiyaların hərəkətlərinin
 //                    təkrarsız birləşməsi göstərilir, operator multi-select edir)
@@ -19,7 +21,7 @@ import { useSetup } from "../context/SetupContext.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { api } from "../lib/api.js";
 import { PageHeader, Card, Chip, Spinner, EmptyState } from "../components/ui/Primitives.jsx";
-import { unitLabel } from "../lib/format.js";
+import { unitLabel, formatDate } from "../lib/format.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 function StepNumber({ n, active, done }) {
@@ -50,6 +52,35 @@ function Step({ n, title, hint, active, done, children }) {
   );
 }
 
+// İmtahan sətri — chip əvəzinə tam enli, oxunaqlı sıra düyməsi
+function ExamRow({ exam, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`
+        w-full text-left flex items-center justify-between gap-3
+        px-4 py-3 rounded-soft border transition-colors
+        ${active
+          ? "bg-moss-500 text-paper border-moss-600"
+          : "bg-paper text-ink-700 border-ink-200 hover:border-moss-300 hover:bg-moss-50"}
+      `}
+    >
+      <span className="flex flex-col min-w-0">
+        <span className="font-medium truncate">{exam.name}</span>
+        {exam.notes && (
+          <span className={`text-xs truncate ${active ? "text-paper/80" : "text-ink-500"}`}>
+            {exam.notes}
+          </span>
+        )}
+      </span>
+      <span className={`text-xs whitespace-nowrap ${active ? "text-paper/80" : "text-ink-500"}`}>
+        {formatDate(exam.exam_date)}
+      </span>
+    </button>
+  );
+}
+
 export default function SetupPage() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -60,6 +91,9 @@ export default function SetupPage() {
   const [exams, setExams] = useState([]);
   const [allowedExercises, setAllowedExercises] = useState([]);
   const [loading, setLoading] = useState({ s: true, e: false, x: false });
+
+  // İmtahan tarix filtri (yalnız imtahanı olan tarixlər)
+  const [examDate, setExamDate] = useState(null);
 
   // Mərhələ statusu
   const stepDone = {
@@ -79,6 +113,14 @@ export default function SetupPage() {
       .finally(() => setLoading(l => ({ ...l, s: false })));
   }, []);
 
+  // 1b. Yalnız BİR bölmə varsa — seçimə ehtiyac yoxdur, avtomatik seç.
+  //     Artıq seçilibsə (sessiyadan bərpa) toxunmuruq ki, imtahan/hərəkət sıfırlanmasın.
+  useEffect(() => {
+    if (!loading.s && sections.length === 1 && !setup.section) {
+      setSection(sections[0]);
+    }
+  }, [loading.s, sections, setup.section]);
+
   // 2. Bölmə seçiləndə imtahanları yüklə
   useEffect(() => {
     if (!setup.section) { setExams([]); return; }
@@ -88,6 +130,43 @@ export default function SetupPage() {
       .catch(err => toast.error("İmtahanlar yüklənmədi: " + err.message))
       .finally(() => setLoading(l => ({ ...l, e: false })));
   }, [setup.section?.id]);
+
+  // İmtahanların təkrarsız tarixləri.
+  // API onsuz da exam_date DESC qaytarır → ilk-görünüş sırası = ən yenidən ən köhnəyə.
+  const examDates = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    for (const e of exams) {
+      if (e.exam_date && !seen.has(e.exam_date)) {
+        seen.add(e.exam_date);
+        out.push(e.exam_date);
+      }
+    }
+    return out;
+  }, [exams]);
+
+  // Tarix filtri üçün default seçim:
+  //   • cari seçim hələ də etibarlıdırsa saxla
+  //   • sessiyadan bərpa olunmuş imtahan varsa onun tarixini göstər (operatorun öz seçimi)
+  //   • yalnız BİR tarix varsa — onu göstər (seçimə ehtiyac yoxdur)
+  //   • çox tarix varsa — AVTOMATİK seçim YOXDUR, operator özü seçir
+  useEffect(() => {
+    if (examDates.length === 0) { setExamDate(null); return; }
+    if (examDate && examDates.includes(examDate)) return;
+    if (setup.exam?.exam_date && examDates.includes(setup.exam.exam_date)) {
+      setExamDate(setup.exam.exam_date);
+    } else if (examDates.length === 1) {
+      setExamDate(examDates[0]);
+    } else {
+      setExamDate(null);
+    }
+  }, [examDates, setup.exam?.exam_date, examDate]);
+
+  // Seçilmiş tarixdəki imtahanlar
+  const examsForDate = useMemo(
+    () => exams.filter(e => e.exam_date === examDate),
+    [exams, examDate]
+  );
 
   // 3. İmtahan seçiləndə bu imtahanın bütün komissiyalarındakı hərəkətlərin
   //    təkrarsız birləşməsini yüklə
@@ -135,6 +214,12 @@ export default function SetupPage() {
             active={activeStep === 1} done={stepDone[1]}>
         {loading.s ? <Spinner /> : sections.length === 0 ? (
           <EmptyState title="Bölmə yoxdur" hint="Admin səhifəsindən idxal edin" />
+        ) : sections.length === 1 ? (
+          // Tək bölmə — avtomatik seçildi, statik təsdiq
+          <div className="flex items-center gap-2 text-sm text-ink-600">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-moss-500 text-paper text-xs">✓</span>
+            <span>Tək bölmə avtomatik seçildi: <strong>{sections[0].name}</strong></span>
+          </div>
         ) : (
           <div className="flex flex-wrap gap-2">
             {sections.map(s => (
@@ -156,15 +241,41 @@ export default function SetupPage() {
             <EmptyState title="İmtahan yoxdur"
                         hint="Admin səhifəsindən yeni imtahan əlavə edin və ya bu bölməyə təyin edin" />
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {exams.map(e => (
-                <Chip key={e.id}
-                      active={setup.exam?.id === e.id}
-                      onClick={() => setExam(e)}>
-                  <span>{e.name}</span>
-                  <span className="text-xs opacity-70 ml-2">{e.exam_date}</span>
-                </Chip>
-              ))}
+            <div className="space-y-4">
+              {/* Tarix filtri — yalnız imtahanı olan tarixlər (bir tarix varsa gizli) */}
+              {examDates.length > 1 && (
+                <div className="max-w-xs">
+                  <label className="label" htmlFor="exam-date-filter">İmtahan tarixi</label>
+                  <select
+                    id="exam-date-filter"
+                    className="field"
+                    value={examDate ?? ""}
+                    onChange={(e) => setExamDate(e.target.value || null)}
+                  >
+                    <option value="">— Tarix seçin —</option>
+                    {examDates.map(d => (
+                      <option key={d} value={d}>{formatDate(d)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* İmtahan siyahısı — sətir görünüşü (yalnız tarix seçildikdə) */}
+              {!examDate ? (
+                <EmptyState title="Tarix seçin"
+                            hint="İmtahanları görmək üçün yuxarıdan tarix seçin" />
+              ) : examsForDate.length === 0 ? (
+                <EmptyState title="Bu tarixdə imtahan yoxdur" hint="Başqa tarix seçin" />
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {examsForDate.map(e => (
+                    <ExamRow key={e.id}
+                             exam={e}
+                             active={setup.exam?.id === e.id}
+                             onClick={() => setExam(e)} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </Step>

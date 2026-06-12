@@ -5,8 +5,10 @@
 //   is_n, exercise_code, raw_value, is_refused, notes,
 //   appeal_score, appeal_raw_value, appeal_decision, appeal_notes
 //
-// (Bal hesablama əsas layihənin scoring_rules-u üzərindən aparılır.
-//  appeal_score = operatorun apellyasiyada yazdığı dəyər (appeal_value).)
+// QEYD (düzəliş): station app-da apellyasiya dəyəri (appeal_value) operatorun
+// ölçdüyü XAM dəyərdir (məs. 100 m-də 12.98 san), bal deyil. Ona görə ixracda
+// bu dəyər HƏMİŞƏ appeal_raw_value sütununa yazılır; appeal_score boş qalır və
+// bal admin tərəfdə scoring_rules üzərindən avtomatik hesablanır.
 
 const express = require("express");
 const router = express.Router();
@@ -71,8 +73,9 @@ function flattenForExport(rows) {
     raw_value:        r.is_refused ? null : r.raw_value,
     is_refused:       r.is_refused ? true : null,        // imtina → true, deyilsə boş
     notes:            r.notes ?? null,
-    appeal_score:     hasAppeal(r) && !r.appeal_is_refused ? r.appeal_value : null,
-    appeal_raw_value: null,                              // DB-də ayrıca sahə yoxdur — boş qalır
+    // appeal_value XAM dəyərdir → appeal_raw_value sütununa. Bal admin tərəfdə avtomatik hesablanır.
+    appeal_score:     null,                              // bal HƏMİŞƏ boş
+    appeal_raw_value: hasAppeal(r) && !r.appeal_is_refused ? r.appeal_value : null,
     appeal_decision:  appealDecision(r),                 // dəyişdi | dəyişmədi | boş
     appeal_notes:     r.appeal_notes ?? null,
   }));

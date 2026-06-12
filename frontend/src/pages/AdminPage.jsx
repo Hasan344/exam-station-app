@@ -1,7 +1,7 @@
 // src/pages/AdminPage.jsx
 //
 // Admin paneli — 4 tab:
-//   • İdxal      → Excel/CSV yükləmələri
+//   • İdxal      → ResultsApp-dan idxal (URL) + Snapshot JSON faylı idxalı
 //   • İmtahan    → CRUD: imtahan əlavə et / sil
 //   • Eksport    → nəticələri xlsx/json/csv kimi yüklə
 //   • Parol      → admin parolunu dəyiş
@@ -25,15 +25,16 @@ export default function AdminPage() {
     <>
       <PageHeader title="Admin panel" subtitle="İdarəetmə əməliyyatları" />
 
-      <div className="flex gap-1 mb-6 border-b border-ink-200">
+      {/* Tab-lar birbaşa gradient fon üzərində render olunur → ağ mətn/sərhəd */}
+      <div className="flex gap-1 mb-6 border-b border-white/20">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
             className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors
               ${tab === t.id
-                ? "border-moss-500 text-ink-900 font-medium"
-                : "border-transparent text-ink-500 hover:text-ink-800"}`}
+                ? "border-white text-white font-medium"
+                : "border-transparent text-white/60 hover:text-white"}`}
           >{t.label}</button>
         ))}
       </div>
@@ -48,51 +49,120 @@ export default function AdminPage() {
 
 // ─────────────────────────────────────────────────────────────
 //  IDXAL
+//  İki yol:
+//    1) ResultsApp-dan birbaşa (URL)
+//    2) Lokal snapshot JSON faylı (hamısı bir dəfəyə)
 // ─────────────────────────────────────────────────────────────
 function ImportTab() {
-  const items = [
-    { path: "/imports/sections",             label: "Bölmələr",
-      hint: "Sütunlar: id, name, sect_code" },
-    { path: "/imports/exercises",            label: "Hərəkətlər (kataloq)",
-      hint: "Sütunlar: code, name, unit (second/cm/count/score), direction (1/2), display_order, notes" },
-    { path: "/imports/commissions",          label: "Komissiyalar",
-      hint: "Sütunlar: commission_no, name, section_id" },
-    { path: "/imports/commission-exercises", label: "Komissiya ↔ Hərəkət bağlantısı",
-      hint: "Sütunlar: commission_no, exercise_code, display_order" },
-    { path: "/imports/exams",                label: "İmtahanlar",
-      hint: "Sütunlar: name, exam_date (YYYY-MM-DD), section_id, notes" },
-    { path: "/imports/students",             label: "Tələbələr",
-      hint: "Sütunlar: exam_id, s_nomer, is_n, surname, name, father_name, birth_date, gender (1/2), qrup_num, kodixtisas, ixtisas_name, alt_nov, commission_no" },
-  ];
- 
   return (
     <div className="space-y-6">
-      {/* Excel idxalı */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {items.map(it => <ImportCard key={it.path} {...it} />)}
-      </div>
- 
-      {/* ResultsApp-dan idxal */}
+      <SnapshotJsonImportCard />
       <ResultsAppImportCard />
     </div>
   );
 }
 
-function ImportCard({ path, label, hint }) {
+// Cədvəl-cədvəl hesabat bloku (ResultsApp və JSON idxalı üçün ortaq).
+function ImportReport({ report }) {
+  if (!report) return null;
+  return (
+    <div className="mt-3 text-xs">
+      <div className="text-ink-700 font-medium">{report.message}</div>
+      <details className="mt-2">
+        <summary className="cursor-pointer text-ink-600">Cədvəl-cədvəl detallar</summary>
+        <ul className="mt-1 space-y-1">
+          {Object.entries(report.reports).map(([table, rep]) => (
+            <li key={table} className="bg-ink-50 border border-ink-200 rounded p-2">
+              <div className="flex justify-between">
+                <span className="font-medium">{table}</span>
+                <span className="text-ink-600">
+                  ✔ {rep.inserted} {rep.failed > 0 && <span className="text-rust-600">/ ✗ {rep.failed}</span>}
+                </span>
+              </div>
+              {rep.errors?.length > 0 && (
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-rust-600 text-xs">
+                    Xəta detalları ({rep.errors.length})
+                  </summary>
+                  <ul className="mt-1 max-h-32 overflow-y-auto text-rust-700">
+                    {rep.errors.map((e, i) => <li key={i}>• {e}</li>)}
+                  </ul>
+                </details>
+              )}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Snapshot JSON faylı idxalı — hamısı bir dəfəyə
+// ─────────────────────────────────────────────────────────────
+const SNAPSHOT_KEYS = [
+  "sections", "exercises", "commissions", "commission_exercises",
+  "exams", "exam_commissions", "students",
+];
+
+function SnapshotJsonImportCard() {
   const toast = useToast();
-  const [file, setFile] = useState(null);
+  const [fileName, setFileName] = useState("");
+  const [snapshot, setSnapshot] = useState(null);
+  const [counts, setCounts] = useState(null);
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState(null);
 
-  const onUpload = async () => {
-    if (!file) return toast.warn("Fayl seçin");
+  const reset = () => {
+    setFileName("");
+    setSnapshot(null);
+    setCounts(null);
+    setReport(null);
+  };
+
+  const onFile = (file) => {
+    setReport(null);
+    if (!file) { reset(); return; }
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        if (!data || typeof data !== "object" || Array.isArray(data)) {
+          throw new Error("snapshot obyekti gözlənilir");
+        }
+        const hasAny = SNAPSHOT_KEYS.some((k) => Array.isArray(data[k]));
+        if (!hasAny) throw new Error("sections/exercises/exams və s. tapılmadı");
+
+        const c = {};
+        for (const k of SNAPSHOT_KEYS) c[k] = Array.isArray(data[k]) ? data[k].length : 0;
+        setSnapshot(data);
+        setCounts(c);
+        toast.success("Fayl oxundu — idxala hazırdır");
+      } catch (err) {
+        setSnapshot(null);
+        setCounts(null);
+        toast.error("JSON oxuna bilmədi: " + err.message);
+      }
+    };
+    reader.onerror = () => {
+      setSnapshot(null);
+      setCounts(null);
+      toast.error("Fayl oxunarkən xəta baş verdi");
+    };
+    reader.readAsText(file);
+  };
+
+  const onRun = async () => {
+    if (!snapshot) return toast.warn("Əvvəl JSON faylı seçin");
+    if (!confirm("Snapshot faylındakı bütün data SQLite-ə köçürüləcək. Davam edək?")) return;
     setBusy(true);
     setReport(null);
     try {
-      const result = await api.upload(path, file);
+      const result = await api.post("/resultsapp-import/import-json", snapshot);
       setReport(result);
-      if (result.failed > 0) toast.warn(`${result.inserted} qeyd əlavə, ${result.failed} xəta`);
-      else toast.success(`${result.inserted} qeyd əlavə edildi`);
+      if (result.failed > 0) toast.warn(`${result.inserted} qeyd köçürüldü, ${result.failed} xəta`);
+      else toast.success(`${result.inserted} qeyd köçürüldü`);
     } catch (err) {
       toast.error("İdxal xətası: " + err.message);
     } finally {
@@ -101,31 +171,213 @@ function ImportCard({ path, label, hint }) {
   };
 
   return (
-    <Card title={label} subtitle={hint}>
-      <div className="flex items-center gap-3">
+    <Card
+      title="Snapshot JSON faylından idxal"
+      subtitle="ResultsApp snapshot faylını seçin — bütün data (sections + exercises + commissions + exams + students) bir dəfəyə idxal olunur"
+    >
+      <div className="flex items-center gap-3 flex-wrap">
         <input
           type="file"
-          accept=".xlsx,.xls,.csv"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
+          accept=".json,application/json"
+          onChange={(e) => onFile(e.target.files?.[0] || null)}
           className="text-sm"
         />
-        <button className="btn-primary" onClick={onUpload} disabled={!file || busy}>
-          {busy ? "Yüklənir..." : "İdxal et"}
+        <button
+          className="btn-primary"
+          onClick={onRun}
+          disabled={!snapshot || busy}
+        >
+          {busy ? "Köçürülür..." : "İdxal et"}
         </button>
       </div>
-      {report && (
-        <div className="mt-3 text-xs">
-          <div className="text-ink-700">{report.message}</div>
-          {report.errors?.length > 0 && (
-            <details className="mt-2">
-              <summary className="cursor-pointer text-rust-600">Xəta detalları ({report.errors.length})</summary>
-              <ul className="mt-1 max-h-40 overflow-y-auto bg-rust-400/5 border border-rust-400/30 rounded p-2 space-y-0.5">
-                {report.errors.map((e, i) => <li key={i} className="text-rust-700">• {e}</li>)}
-              </ul>
-            </details>
-          )}
+
+      {fileName && (
+        <p className="mt-2 text-xs text-ink-500">
+          Fayl: <span className="font-mono text-ink-700">{fileName}</span>
+        </p>
+      )}
+
+      {/* Faylın tərkibi (yazılmadan əvvəl) */}
+      {counts && (
+        <div className="mt-3 text-xs bg-ink-50 border border-ink-200 rounded p-2">
+          <div className="font-medium text-ink-800 mb-1">Fayl tərkibi (yazılmayıb):</div>
+          <ul className="grid grid-cols-2 gap-x-4">
+            {Object.entries(counts).map(([k, v]) => (
+              <li key={k} className="text-ink-700">
+                <span className="text-ink-500">{k}:</span> <b>{v}</b>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
+
+      <ImportReport report={report} />
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+//  ResultsApp-dan idxal (birbaşa URL)
+// ─────────────────────────────────────────────────────────────
+function ResultsAppImportCard() {
+  const toast = useToast();
+  const [filters, setFilters] = useState({
+    baseUrl: "http://localhost:5000/api",
+    examId: "",
+    sectionId: "",
+    commissionNo: "",
+    from: "",
+    to: "",
+  });
+  const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
+  const [report, setReport] = useState(null);
+
+  const buildBody = () => {
+    const body = {};
+    if (filters.baseUrl)      body.baseUrl = filters.baseUrl;
+    if (filters.examId)       body.examId = Number(filters.examId);
+    if (filters.sectionId)    body.sectionId = Number(filters.sectionId);
+    if (filters.commissionNo) body.commissionNo = filters.commissionNo;
+    if (filters.from)         body.from = filters.from;
+    if (filters.to)           body.to = filters.to;
+    return body;
+  };
+
+  const onPreview = async () => {
+    setBusy(true);
+    setReport(null);
+    try {
+      const result = await api.post("/resultsapp-import/preview", buildBody());
+      setPreview(result);
+      toast.success("Önbaxış hazırdır");
+    } catch (err) {
+      toast.error("Önbaxış xətası: " + err.message);
+      setPreview(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRun = async () => {
+    if (!confirm("ResultsApp-dan data köçürüləcək. Davam edək?")) return;
+    setBusy(true);
+    setReport(null);
+    try {
+      const result = await api.post("/resultsapp-import/run", buildBody());
+      setReport(result);
+      if (result.failed > 0) toast.warn(`${result.inserted} qeyd köçürüldü, ${result.failed} xəta`);
+      else toast.success(`${result.inserted} qeyd köçürüldü`);
+    } catch (err) {
+      toast.error("İdxal xətası: " + err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card
+      title="ResultsApp-dan idxal"
+      subtitle="Xarici ResultsApp API-sindən birbaşa data çək (sections + exercises + commissions + exams + students)"
+    >
+      {/* Baza URL */}
+      <div className="mb-3">
+        <label className="block text-xs text-ink-600 mb-1">ResultsApp baza URL</label>
+        <input
+          type="text"
+          className="field text-sm w-full"
+          value={filters.baseUrl}
+          onChange={(e) => setFilters({ ...filters, baseUrl: e.target.value })}
+          placeholder="http://localhost:5000/api"
+        />
+      </div>
+
+      {/* Filter sahələri */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
+        <div>
+          <label className="block text-xs text-ink-600 mb-1">İmtahan ID</label>
+          <input
+            type="number"
+            className="field text-sm w-full"
+            value={filters.examId}
+            onChange={(e) => setFilters({ ...filters, examId: e.target.value })}
+            placeholder="hamısı"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-ink-600 mb-1">Bölmə ID</label>
+          <input
+            type="number"
+            className="field text-sm w-full"
+            value={filters.sectionId}
+            onChange={(e) => setFilters({ ...filters, sectionId: e.target.value })}
+            placeholder="hamısı"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-ink-600 mb-1">Komissiya No</label>
+          <input
+            type="text"
+            className="field text-sm w-full"
+            value={filters.commissionNo}
+            onChange={(e) => setFilters({ ...filters, commissionNo: e.target.value })}
+            placeholder="məs: 62"
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-ink-600 mb-1">Başlama tarixi</label>
+          <input
+            type="date"
+            className="field text-sm w-full"
+            value={filters.from}
+            onChange={(e) => setFilters({ ...filters, from: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="block text-xs text-ink-600 mb-1">Bitmə tarixi</label>
+          <input
+            type="date"
+            className="field text-sm w-full"
+            value={filters.to}
+            onChange={(e) => setFilters({ ...filters, to: e.target.value })}
+          />
+        </div>
+      </div>
+
+      {/* Düymələr */}
+      <div className="flex items-center gap-2">
+        <button
+          className="btn-secondary"
+          onClick={onPreview}
+          disabled={busy}
+        >
+          {busy ? "..." : "Önbaxış"}
+        </button>
+        <button
+          className="btn-primary"
+          onClick={onRun}
+          disabled={busy}
+        >
+          {busy ? "Köçürülür..." : "İdxal et"}
+        </button>
+      </div>
+
+      {/* Önbaxış nəticəsi */}
+      {preview && (
+        <div className="mt-3 text-xs bg-ink-50 border border-ink-200 rounded p-2">
+          <div className="font-medium text-ink-800 mb-1">Önbaxış (yazılmayıb):</div>
+          <ul className="grid grid-cols-2 gap-x-4">
+            {Object.entries(preview.counts).map(([k, v]) => (
+              <li key={k} className="text-ink-700">
+                <span className="text-ink-500">{k}:</span> <b>{v}</b>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Yekun hesabat */}
+      <ImportReport report={report} />
     </Card>
   );
 }
@@ -338,196 +590,5 @@ function PasswordTab() {
     </Card>
     <ResultEditPasswordCard />
   </div>
-  );
-}
-function ResultsAppImportCard() {
-  const toast = useToast();
-  const [filters, setFilters] = useState({
-    baseUrl: "http://localhost:5000/api",
-    examId: "",
-    sectionId: "",
-    commissionNo: "",
-    from: "",
-    to: "",
-  });
-  const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [report, setReport] = useState(null);
- 
-  const buildBody = () => {
-    const body = {};
-    if (filters.baseUrl)      body.baseUrl = filters.baseUrl;
-    if (filters.examId)       body.examId = Number(filters.examId);
-    if (filters.sectionId)    body.sectionId = Number(filters.sectionId);
-    if (filters.commissionNo) body.commissionNo = filters.commissionNo;
-    if (filters.from)         body.from = filters.from;
-    if (filters.to)           body.to = filters.to;
-    return body;
-  };
- 
-  const onPreview = async () => {
-    setBusy(true);
-    setReport(null);
-    try {
-      const result = await api.post("/resultsapp-import/preview", buildBody());
-      setPreview(result);
-      toast.success("Önbaxış hazırdır");
-    } catch (err) {
-      toast.error("Önbaxış xətası: " + err.message);
-      setPreview(null);
-    } finally {
-      setBusy(false);
-    }
-  };
- 
-  const onRun = async () => {
-    if (!confirm("ResultsApp-dan data köçürüləcək. Davam edək?")) return;
-    setBusy(true);
-    setReport(null);
-    try {
-      const result = await api.post("/resultsapp-import/run", buildBody());
-      setReport(result);
-      if (result.failed > 0) toast.warn(`${result.inserted} qeyd köçürüldü, ${result.failed} xəta`);
-      else toast.success(`${result.inserted} qeyd köçürüldü`);
-    } catch (err) {
-      toast.error("İdxal xətası: " + err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
- 
-  return (
-    <Card
-      title="ResultsApp-dan idxal"
-      subtitle="Xarici ResultsApp API-sindən birbaşa data çək (sections + exercises + commissions + exams + students)"
-    >
-      {/* Baza URL */}
-      <div className="mb-3">
-        <label className="block text-xs text-ink-600 mb-1">ResultsApp baza URL</label>
-        <input
-          type="text"
-          className="input-field text-sm w-full"
-          value={filters.baseUrl}
-          onChange={(e) => setFilters({ ...filters, baseUrl: e.target.value })}
-          placeholder="http://localhost:5000/api"
-        />
-      </div>
- 
-      {/* Filter sahələri */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-3">
-        <div>
-          <label className="block text-xs text-ink-600 mb-1">İmtahan ID</label>
-          <input
-            type="number"
-            className="input-field text-sm w-full"
-            value={filters.examId}
-            onChange={(e) => setFilters({ ...filters, examId: e.target.value })}
-            placeholder="hamısı"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-ink-600 mb-1">Bölmə ID</label>
-          <input
-            type="number"
-            className="input-field text-sm w-full"
-            value={filters.sectionId}
-            onChange={(e) => setFilters({ ...filters, sectionId: e.target.value })}
-            placeholder="hamısı"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-ink-600 mb-1">Komissiya No</label>
-          <input
-            type="text"
-            className="input-field text-sm w-full"
-            value={filters.commissionNo}
-            onChange={(e) => setFilters({ ...filters, commissionNo: e.target.value })}
-            placeholder="məs: 62"
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-ink-600 mb-1">Başlama tarixi</label>
-          <input
-            type="date"
-            className="input-field text-sm w-full"
-            value={filters.from}
-            onChange={(e) => setFilters({ ...filters, from: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="block text-xs text-ink-600 mb-1">Bitmə tarixi</label>
-          <input
-            type="date"
-            className="input-field text-sm w-full"
-            value={filters.to}
-            onChange={(e) => setFilters({ ...filters, to: e.target.value })}
-          />
-        </div>
-      </div>
- 
-      {/* Düymələr */}
-      <div className="flex items-center gap-2">
-        <button
-          className="btn-secondary"
-          onClick={onPreview}
-          disabled={busy}
-        >
-          {busy ? "..." : "Önbaxış"}
-        </button>
-        <button
-          className="btn-primary"
-          onClick={onRun}
-          disabled={busy}
-        >
-          {busy ? "Köçürülür..." : "İdxal et"}
-        </button>
-      </div>
- 
-      {/* Önbaxış nəticəsi */}
-      {preview && (
-        <div className="mt-3 text-xs bg-ink-50 border border-ink-200 rounded p-2">
-          <div className="font-medium text-ink-800 mb-1">Önbaxış (yazılmayıb):</div>
-          <ul className="grid grid-cols-2 gap-x-4">
-            {Object.entries(preview.counts).map(([k, v]) => (
-              <li key={k} className="text-ink-700">
-                <span className="text-ink-500">{k}:</span> <b>{v}</b>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
- 
-      {/* Yekun hesabat */}
-      {report && (
-        <div className="mt-3 text-xs">
-          <div className="text-ink-700 font-medium">{report.message}</div>
-          <details className="mt-2">
-            <summary className="cursor-pointer text-ink-600">Cədvəl-cədvəl detallar</summary>
-            <ul className="mt-1 space-y-1">
-              {Object.entries(report.reports).map(([table, rep]) => (
-                <li key={table} className="bg-ink-50 border border-ink-200 rounded p-2">
-                  <div className="flex justify-between">
-                    <span className="font-medium">{table}</span>
-                    <span className="text-ink-600">
-                      ✔ {rep.inserted} {rep.failed > 0 && <span className="text-rust-600">/ ✗ {rep.failed}</span>}
-                    </span>
-                  </div>
-                  {rep.errors?.length > 0 && (
-                    <details className="mt-1">
-                      <summary className="cursor-pointer text-rust-600 text-xs">
-                        Xəta detalları ({rep.errors.length})
-                      </summary>
-                      <ul className="mt-1 max-h-32 overflow-y-auto text-rust-700">
-                        {rep.errors.map((e, i) => <li key={i}>• {e}</li>)}
-                      </ul>
-                    </details>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </details>
-        </div>
-      )}
-    </Card>
   );
 }
