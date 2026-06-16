@@ -321,7 +321,7 @@ function ResultsAppImportCard() {
             className="field text-sm w-full"
             value={filters.commissionNo}
             onChange={(e) => setFilters({ ...filters, commissionNo: e.target.value })}
-            placeholder="məs: 62"
+            placeholder=""
           />
         </div>
         <div>
@@ -430,7 +430,7 @@ function ExamTab() {
     <>
       <Card title="Yeni imtahan əlavə et">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <input className="field" placeholder="Ad (məs. Yay 2025)"
+          <input className="field" placeholder="Ad"
                  value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <input className="field" type="date"
                  value={form.exam_date} onChange={(e) => setForm({ ...form, exam_date: e.target.value })} />
@@ -441,7 +441,7 @@ function ExamTab() {
           </select>
           <button className="btn-primary" onClick={onCreate}>Əlavə et</button>
         </div>
-        <input className="field mt-3" placeholder="Qeyd (ixtiyari)"
+        <input className="field mt-3" placeholder=""
                value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
       </Card>
 

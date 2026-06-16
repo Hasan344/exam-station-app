@@ -11,6 +11,10 @@
 // KOMİSSİYA quraşdırmada və ya axtarışda iştirak ETMİR.
 //   s_nomer imtahan daxilində unikal olduğu üçün lookup yalnız examId + sNomer ilə işləyir.
 //   Hərəkətlər imtahana uyğun seçilir (SetupPage Addım 3 — imtahanın hərəkətlərinin birləşməsi).
+//
+// MİZANPAN: Abituriyent şəkli + tam oxunabilən məlumat SOLDA, nəticə inputları isə
+//   şəklin SAĞINDA eyni sətirdə yerləşir — beləliklə operatorun scroll etməsinə
+//   ehtiyac qalmır (1366×768).
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSetup } from "../context/SetupContext.jsx";
@@ -51,7 +55,7 @@ function StudentPhoto({ studentId }) {
   return (
     <img
       src={`/students/${studentId}/photo?ts=${studentId}`}
-      alt="Tələbə şəkli"
+      alt="Abituriyent şəkli"
       onError={() => setHasError(true)}
       className="w-48 h-60 object-cover rounded-soft border border-ink-200 bg-ink-50"
     />
@@ -163,7 +167,7 @@ export default function WorkstationPage() {
       initInputs(existing);
       if (existing.length > 0) {
         const ap = existing.filter(r => r.appeal_value != null || r.appeal_is_refused).length;
-        toast.info(`Bu tələbənin ${existing.length} nəticəsi mövcuddur${ap ? ` · ${ap} apellyasiya` : ""}`);
+        toast.info(`Bu Abituriyentin ${existing.length} nəticəsi mövcuddur${ap ? ` · ${ap} apellyasiya` : ""}`);
       }
     } catch (err) {
       toast.error(err.message);
@@ -407,7 +411,7 @@ export default function WorkstationPage() {
         </button>
       </div>
 
-      <Card title="Tələbə axtarışı" subtitle="Qol nömrəsini daxil edin və Enter basın">
+      <Card title="Abituriyent axtarışı" subtitle="Qol nömrəsini daxil edin və Enter basın">
         <div className="flex items-end gap-3">
           <div className="flex-1 max-w-xs">
             <label className="label">Qol №</label>
@@ -417,7 +421,7 @@ export default function WorkstationPage() {
               value={sNomer}
               onChange={(e) => setSNomer(e.target.value)}
               onKeyDown={onSNomerKey}
-              placeholder="məs. 12"
+              placeholder=""
               className="huge-input field"
               autoFocus
             />
@@ -429,81 +433,89 @@ export default function WorkstationPage() {
         </div>
       </Card>
 
-      {loadingStudent && <div className="mt-6"><Spinner label="Tələbə axtarılır..." /></div>}
+      {loadingStudent && <div className="mt-6"><Spinner label="Abituriyent axtarılır..." /></div>}
 
       {student && !loadingStudent && (
         <>
-          <Card className="mt-6" title="Tələbə məlumatı"
-                subtitle={`İş №: ${student.is_n} · Sıra: ${student.s_nomer}`}>
-            <div className="flex gap-5 items-start">
-              <StudentPhoto studentId={student.id} />
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm flex-1">
-                <div>
-                  <div className="text-ink-400 text-xs uppercase">Soyad Ad Ata</div>
-                  <div className="font-medium text-ink-900 mt-0.5">{fullName(student)}</div>
-                </div>
-                <div>
-                  <div className="text-ink-400 text-xs uppercase">Cins</div>
-                  <div className="font-medium text-ink-900 mt-0.5">{genderLabel(student.gender)}</div>
-                </div>
-                <div>
-                  <div className="text-ink-400 text-xs uppercase">Doğum tarixi</div>
-                  <div className="font-medium text-ink-900 mt-0.5">{formatDate(student.birth_date)}</div>
-                </div>
-                <div>
-                  <div className="text-ink-400 text-xs uppercase">İxtisas</div>
-                  <div className="font-medium text-ink-900 mt-0.5">
-                    {student.kodixtisas} {student.ixtisas_name && `· ${student.ixtisas_name}`}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-ink-400 text-xs uppercase">Komissiya</div>
-                  <div className="font-medium text-ink-900 mt-0.5">№{student.commission_no}</div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
           {isAppeal && (
             <div className="mt-4 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded-soft px-4 py-2">
               Apellyasiya rejimi — hər hərəkət üçün «Dəyişmədi» (köhnə nəticə saxlanılır) və ya «Dəyişdi» (yeni dəyər admin parolu ilə qeyd edilir) seçin.
             </div>
           )}
 
-          <div className="mt-6 workstation-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {setup.exercises.map((ex, i) => (
-              <div key={ex.id} className="exercise-slot">
-                <ExerciseInput
-                  exercise={ex}
-                  index={i}
-                  total={exerciseCount}
-                  value={activeInputs[ex.id]?.rawValue ?? ""}
-                  isRefused={activeInputs[ex.id]?.isRefused ?? false}
-                  notes={activeInputs[ex.id]?.notes ?? ""}
-                  saved={activeMeta[ex.id]?.saved ?? false}
-                  locked={activeMeta[ex.id]?.locked ?? false}
-                  unlocked={unlocked}
-                  saving={savingEx === ex.id}
-                  autoFocus={i === 0}
-                  appeal={isAppeal}
-                  referenceText={isAppeal ? refText(ex) : null}
-                  appealDecision={isAppeal ? (appealDecisions[ex.id] ?? null) : null}
-                  onAppealDecisionChange={(d) => setAppealDecisions(p => ({ ...p, [ex.id]: d }))}
-                  onChange={(v)        => setActiveInput(ex.id, { rawValue: v })}
-                  onRefuseChange={(v)  => setActiveInput(ex.id, { isRefused: v })}
-                  onNotesChange={(v)   => setActiveInput(ex.id, { notes: v })}
-                  onSave={()           => saveOne(ex, i)}
-                  onRequestEdit={()    => ensureUnlocked()}
-                />
+          <Card className="mt-4" title="Abituriyent məlumatı"
+                subtitle={`İş №: ${student.is_n} · Sıra: ${student.s_nomer}`}>
+            <div className="flex flex-col xl:flex-row gap-6 items-start">
+
+              {/* SOL BLOK — şəkil + məlumat */}
+              <div className="flex gap-5 items-start shrink-0">
+                <StudentPhoto studentId={student.id} />
+                <div className="grid grid-cols-1 gap-3 text-sm min-w-[220px]">
+                  <div>
+                    <div className="text-ink-400 text-xs uppercase">Soyad Ad Ata</div>
+                    <div className="font-medium text-ink-900 mt-0.5">{fullName(student)}</div>
+                  </div>
+                  <div>
+                    <div className="text-ink-400 text-xs uppercase">Cins</div>
+                    <div className="font-medium text-ink-900 mt-0.5">{genderLabel(student.gender)}</div>
+                  </div>
+                  <div>
+                    <div className="text-ink-400 text-xs uppercase">Doğum tarixi</div>
+                    <div className="font-medium text-ink-900 mt-0.5">{formatDate(student.birth_date)}</div>
+                  </div>
+                  <div>
+                    <div className="text-ink-400 text-xs uppercase">İxtisas</div>
+                    <div className="font-medium text-ink-900 mt-0.5">
+                      {student.kodixtisas} {student.ixtisas_name && `· ${student.ixtisas_name}`}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-ink-400 text-xs uppercase">Komissiya</div>
+                    <div className="font-medium text-ink-900 mt-0.5">№{student.commission_no}</div>
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+
+              {/* SAĞ BLOK — nəticə inputları (şəklin sağında) */}
+              <div className="flex-1 min-w-0 w-full">
+                <div className="workstation-grid grid grid-cols-1 lg:grid-cols-2 gap-3">
+                  {setup.exercises.map((ex, i) => (
+                    <div key={ex.id} className="exercise-slot">
+                      <ExerciseInput
+                        exercise={ex}
+                        index={i}
+                        total={exerciseCount}
+                        value={activeInputs[ex.id]?.rawValue ?? ""}
+                        isRefused={activeInputs[ex.id]?.isRefused ?? false}
+                        notes={activeInputs[ex.id]?.notes ?? ""}
+                        saved={activeMeta[ex.id]?.saved ?? false}
+                        locked={activeMeta[ex.id]?.locked ?? false}
+                        unlocked={unlocked}
+                        saving={savingEx === ex.id}
+                        autoFocus={i === 0}
+                        appeal={isAppeal}
+                        referenceText={isAppeal ? refText(ex) : null}
+                        appealDecision={isAppeal ? (appealDecisions[ex.id] ?? null) : null}
+                        onAppealDecisionChange={(d) => setAppealDecisions(p => ({ ...p, [ex.id]: d }))}
+                        onChange={(v)        => setActiveInput(ex.id, { rawValue: v })}
+                        onRefuseChange={(v)  => setActiveInput(ex.id, { isRefused: v })}
+                        onNotesChange={(v)   => setActiveInput(ex.id, { notes: v })}
+                        onSave={()           => saveOne(ex, i)}
+                        onRequestEdit={()    => ensureUnlocked()}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          </Card>
         </>
       )}
 
       {!student && !loadingStudent && (
         <Card className="mt-6">
-          <EmptyState icon="◯" title="Tələbə seçilməyib" hint="Yuxarıda qol nömrəsini daxil edib Enter basın" />
+          <EmptyState icon="◯" title="Abituriyent seçilməyib" hint="Yuxarıda qol nömrəsini daxil edib Enter basın" />
         </Card>
       )}
 

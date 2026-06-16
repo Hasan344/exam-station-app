@@ -1,6 +1,6 @@
 // src/components/ExerciseInput.jsx
 //
-// Bir hərəkət üçün böyük input + imtina toggle + qeyd + AYRI SAXLA düyməsi.
+// Bir hərəkət üçün böyük input + imtina toggle + AYRI SAXLA düyməsi.
 // Rejimlər: Nəticə (yaşıl) / Apellyasiya (narıncı).
 //
 // Apellyasiya rejimində əlavə "Dəyişdi / Dəyişmədi" seçimi:
@@ -13,18 +13,20 @@
 //   • valideyn komponent saxlayanda parseMinSec ilə saniyəyə çevirir
 //
 // score vahidi:
-//   • yalnız TAM ədəd (kəsr hissə yoxdur) — step="1", "." "," "e" simvolları bloklanır.
+//   • yalnız TAM ədəd (kəsr hissə yoxdur) — "." "," "e" "+" "-" bloklanır,
+//     yapışdırılan/daxil olunan mətndən rəqəm olmayan simvollar atılır.
+//
+// QEYD: Nəticə yığımı zamanı "Qeyd" sahəsi göstərilmir (hazırda mənası yoxdur) —
+//       yalnız apellyasiya rejimində "səbəb" sahəsi kimi qalır.
+//
+// İMTİNA: tək toggle, etiketi həmişə "İmtina". Seçiləndə kart solğun görünmür —
+//         tam dolğunluqda, aydın rust kontur ilə qalır.
 //
 // Bütün number inputlar:
 //   • mouse təkəri ilə fokuslandıqda dəyər təsadüfən dəyişməsin deyə wheel bloklanır.
-//
-// KOMPAKT REJIM (Plan A):
-//   • total <= 2 olduqda kart hündürlüyü azalır (padding, başlıq, boşluqlar, qeyd
-//     sahəsi 2 sətir) — operator 1–2 hərəkətdə səhifəni scroll etmədən işləsin.
-//   • 4 hərəkətdə əvvəlki ölçülər qalır, scroll təbiidir.
 
 import { useEffect, useRef } from "react";
-import { unitShort, unitPlaceholder, parseMinSec, secondsToMinSec } from "../lib/format.js";
+import { unitShort, parseMinSec, secondsToMinSec } from "../lib/format.js";
 
 export default function ExerciseInput({
   exercise,
@@ -53,17 +55,17 @@ export default function ExerciseInput({
   const isMinSec = exercise.unit === "min_sec";
   const isScore  = exercise.unit === "score";   // yalnız tam ədəd
 
-  // Kompakt rejim: 1–2 hərəkət olduqda kartı sıxaraq səhifəni
-  // scroll etmədən ekrana sığdırmaq üçün.
+  // Kompakt rejim: 1–2 hərəkət olduqda kartı bir az daha sıxırıq.
   const compact = total <= 2;
 
   useEffect(() => {
-    if (autoFocus && !readOnly) setTimeout(() => inputRef.current?.focus(), 50);
-  }, [autoFocus, readOnly]);
+    if (autoFocus && !readOnly && !isRefused) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [autoFocus, readOnly, isRefused]);
 
   // Mouse təkəri ilə number input-un dəyərini dəyişməsini blokla.
   // React-in onWheel-ı passiv listener kimi qeydiyyatdan keçir → preventDefault işləmir,
   // ona görə native listener-i { passive: false } ilə qoşuruq. Fokus itmir.
+  // isRefused dəyişəndə input söndürülüb-açıldığı üçün listener-i yenidən qoşuruq.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -72,7 +74,7 @@ export default function ExerciseInput({
     };
     el.addEventListener("wheel", stopWheel, { passive: false });
     return () => el.removeEventListener("wheel", stopWheel);
-  }, []);
+  }, [isRefused]);
 
   const handleKey = (e) => {
     if (e.key === "Enter") {
@@ -86,7 +88,7 @@ export default function ExerciseInput({
     }
   };
 
-  // score üçün yapışdırma/daxiletmədə rəqəm olmayan simvolları at
+  // score üçün yapışdırma/daxiletmədə rəqəm olmayan simvolları at (kəsr hissə yazıla bilməz)
   const handleChange = (raw) => {
     if (isScore) raw = raw.replace(/[^\d]/g, "");
     onChange(raw);
@@ -95,7 +97,7 @@ export default function ExerciseInput({
   // Apellyasiyada dəyər/imtina yalnız "Dəyişdi" seçimində aktivdir.
   const appealLocksInputs = appeal && appealDecision !== "changed";
   const refuseDisabled = readOnly || appealLocksInputs;
-  const inputDisabled  = readOnly || isRefused || appealLocksInputs;
+  const inputDisabled  = readOnly || appealLocksInputs;
   const saveDisabled   = saving || (appeal && !appealDecision);
 
   // min_sec canlı önizləmə / xəta
@@ -113,9 +115,13 @@ export default function ExerciseInput({
   const cardAccent = appeal
     ? (readOnly ? "bg-orange-50 border-orange-200" : "border-orange-200")
     : (readOnly ? "bg-ink-100/60 border-ink-300" : "");
+  // İmtina seçiləndə kart SOLĞUN olmasın — tam dolğunluqda aydın rust kontur.
+  const refusedAccent = isRefused && !readOnly && !appeal
+    ? "border-rust-300 ring-1 ring-rust-200"
+    : "";
 
   return (
-    <div className={`card ${compact ? "p-4" : "p-5"} transition-colors ${cardAccent} ${isRefused && !readOnly && !appeal ? "bg-rust-400/5 border-rust-400/30" : ""}`}>
+    <div className={`card ${compact ? "p-3" : "p-4"} transition-colors ${cardAccent} ${refusedAccent}`}>
       <div className={`flex items-start justify-between ${compact ? "mb-2" : "mb-3"}`}>
         <div>
           <div className="flex items-center gap-2 text-xs text-ink-500 uppercase tracking-wider">
@@ -153,7 +159,7 @@ export default function ExerciseInput({
             onChange={(e) => onRefuseChange(e.target.checked)}
             className="sr-only"
           />
-          {isRefused ? "İmtina" : "İmtina deyil"}
+          İmtina
         </label>
       </div>
 
@@ -191,25 +197,32 @@ export default function ExerciseInput({
         </div>
       )}
 
-      <div className={`grid grid-cols-1 md:grid-cols-3 ${compact ? "gap-3" : "gap-4"}`}>
-        <div className="md:col-span-2">
+      <div className={compact ? "space-y-2" : "space-y-3"}>
+        <div>
           <label className="label">
             {appeal ? "Apellyasiya dəyəri" : "Dəyər"}
-            {isMinSec && <span className="ml-2 normal-case tracking-normal text-ink-400">(dəqiqə.saniyə — məs. 2.24)</span>}
+            {isMinSec && <span className="ml-2 normal-case tracking-normal text-ink-400">(dəqiqə.saniyə)</span>}
           </label>
           <div className="flex items-center gap-3">
-            <input
-              ref={inputRef}
-              type={isMinSec ? "text" : "number"}
-              step={isMinSec ? undefined : isScore ? "1" : "0.01"}
-              inputMode={isScore ? "numeric" : "decimal"}
-              disabled={inputDisabled}
-              value={isRefused ? "" : (value ?? "")}
-              onChange={(e) => handleChange(e.target.value)}
-              onKeyDown={handleKey}
-              placeholder={unitPlaceholder(exercise.unit)}
-              className={`huge-input field flex-1 disabled:bg-ink-100 disabled:text-ink-400 ${minSecInvalid ? "border-rust-500 focus:ring-rust-300" : ""}`}
-            />
+            {isRefused ? (
+              // İmtina edilibsə: solğun deaktiv input yerinə aydın rust göstərici.
+              <div className="huge-input field flex-1 flex items-center font-medium text-rust-600 bg-white border-rust-300">
+                İmtina edilib
+              </div>
+            ) : (
+              <input
+                ref={inputRef}
+                type={isMinSec ? "text" : "number"}
+                step={isMinSec ? undefined : isScore ? "1" : "0.01"}
+                inputMode={isScore ? "numeric" : "decimal"}
+                disabled={inputDisabled}
+                value={value ?? ""}
+                onChange={(e) => handleChange(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder=""
+                className={`huge-input field flex-1 disabled:bg-ink-100 disabled:text-ink-400 ${minSecInvalid ? "border-rust-500 focus:ring-rust-300" : ""}`}
+              />
+            )}
             <span className="text-ink-500 font-medium text-lg min-w-[60px]">
               {unitShort(exercise.unit)}
             </span>
@@ -236,7 +249,7 @@ export default function ExerciseInput({
           {isMinSec && !isRefused && (
             minSecInvalid ? (
               <div className="text-xs text-rust-600 mt-1">
-                Format yanlışdır. Düzgün: dəqiqə.saniyə (saniyə 0–59), məs. 2.24
+                Format yanlışdır. Düzgün format: dəqiqə.saniyə (saniyə 0–59).
               </div>
             ) : minSecParsed != null ? (
               <div className="text-xs text-ink-500 mt-1">
@@ -247,20 +260,23 @@ export default function ExerciseInput({
           )}
         </div>
 
-        <div>
-          <label className="label">Qeyd (ixtiyari)</label>
-          <textarea
-            rows={compact ? 2 : 3}
-            disabled={readOnly}
-            value={notes ?? ""}
-            onChange={(e) => onNotesChange(e.target.value)}
-            placeholder={appeal ? "apellyasiya səbəbi..." : "məs. külək, yağış..."}
-            className="field resize-none disabled:bg-ink-100 disabled:text-ink-400"
-          />
-        </div>
+        {/* Qeyd YALNIZ apellyasiya rejimində (səbəb üçün); nəticə yığımında göstərilmir. */}
+        {appeal && (
+          <div>
+            <label className="label">Apellyasiya səbəbi (ixtiyari)</label>
+            <textarea
+              rows={2}
+              disabled={readOnly}
+              value={notes ?? ""}
+              onChange={(e) => onNotesChange(e.target.value)}
+              placeholder=""
+              className="field resize-none disabled:bg-ink-100 disabled:text-ink-400"
+            />
+          </div>
+        )}
       </div>
 
-      <div className={`${compact ? "mt-3" : "mt-4"} flex items-center justify-end gap-3`}>
+      <div className={`${compact ? "mt-2" : "mt-3"} flex items-center justify-end gap-3`}>
         {readOnly ? (
           <>
             <span className="text-sm text-ink-500">

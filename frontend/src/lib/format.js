@@ -33,15 +33,10 @@ export function unitShort(unit) {
   }
 }
 
-export function unitPlaceholder(unit) {
-  switch (unit) {
-    case "second":  return "məs. 12.35";
-    case "min_sec": return "məs. 2.24 (2 dəq 24 san)";
-    case "cm":      return "məs. 220";
-    case "count":   return "məs. 15";
-    case "score":   return "məs. 8";
-    default:        return "dəyər";
-  }
+// Placeholder-lar UI-dan tamamilə çıxarıldı.
+// İnput sahələrində "məsələn ..." nümunəsi göstərilmir.
+export function unitPlaceholder() {
+  return "";
 }
 
 // ───────── min_sec çevirmələri ─────────

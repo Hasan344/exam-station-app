@@ -1,12 +1,3 @@
-// src/pages/ResultsListPage.jsx
-//
-// Yığılmış nəticələrin matris baxışı:
-//   • Sətirlər: tələbələr (sıra № üzrə)
-//   • Sütunlar: hərəkətlər
-//   • Hər xanada raw_value (və ya "İmtina")
-//   • Apellyasiya varsa → NARINCI göstərilir, altında əsas nəticə üstüçızıqlı
-//
-// Filter: İmtahan + Komissiya. Axtarış: ad/soyad/iş №.
 
 import { useEffect, useMemo, useState } from "react";
 import { useToast } from "../context/ToastContext.jsx";
@@ -14,27 +5,37 @@ import { api } from "../lib/api.js";
 import { PageHeader, Card, Spinner, EmptyState, Toolbar } from "../components/ui/Primitives.jsx";
 import { fullName, formatRaw } from "../lib/format.js";
 import { useSetup } from "../context/SetupContext.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function ResultsListPage() {
   const toast = useToast();
+  const { isAdmin } = useAuth();
+  const { setup } = useSetup();
 
   const [exams, setExams] = useState([]);
   const [commissions, setCommissions] = useState([]);
-  const {setup} = useSetup();
   const [examId, setExamId] = useState(setup.exam?.id ? String(setup.exam.id) : "");
   const [commissionNo, setCommissionNo] = useState(setup.commission?.commission_no || "");
   const [search, setSearch] = useState("");
-  
 
   const [students, setStudents] = useState([]);
   const [results, setResults] = useState([]);
   const [exercises, setExercises] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // İmtahan/komissiya siyahıları yalnız admin filtri üçün lazımdır.
   useEffect(() => {
+    if (!isAdmin) return;
     api.get("/exams").then(setExams).catch(err => toast.error(err.message));
     api.get("/commissions").then(setCommissions).catch(err => toast.error(err.message));
-  }, []);
+  }, [isAdmin]);
+
+  // Admin deyilsə: imtahanı quraşdırmadakı seçimə kilidlə, komissiya filtrini sıfırla.
+  useEffect(() => {
+    if (isAdmin) return;
+    setExamId(setup.exam?.id ? String(setup.exam.id) : "");
+    setCommissionNo("");
+  }, [isAdmin, setup.exam?.id]);
 
   useEffect(() => {
     if (!examId) { setStudents([]); setResults([]); setExercises([]); return; }
@@ -100,30 +101,36 @@ export default function ResultsListPage() {
     ? `/exports/results.xlsx?examId=${examId}${commissionNo ? `&commissionNo=${commissionNo}` : ""}`
     : null;
 
+  const selectedExamLabel = setup.exam?.name
+    ? `${setup.exam.name}${setup.exam.exam_date ? ` (${setup.exam.exam_date})` : ""}`
+    : "—";
+
   return (
     <>
-      <PageHeader title="Yığılmış nəticələr" subtitle="Komissiya × hərəkət matrisi" />
+      <PageHeader title="Yığılmış nəticələr" />
 
       <Toolbar>
-        <div>
-          <label className="label-inline">İmtahan</label>
-          <select value={examId} onChange={(e) => setExamId(e.target.value)} className="field !w-auto">
-            <option value="">— Seçin —</option>
-            {exams.map(e => (
-              <option key={e.id} value={e.id}>{e.name} ({e.exam_date})</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="label-inline">Komissiya</label>
-          <select value={commissionNo} onChange={(e) => setCommissionNo(e.target.value)} className="field !w-auto">
-            <option value="">— Hamısı —</option>
-            {commissions.map(c => (
-              <option key={c.id} value={c.commission_no}>№{c.commission_no} — {c.name}</option>
-            ))}
-          </select>
-        </div>
+        {isAdmin ? (
+          <>
+            <div>
+              <label className="label-inline">İmtahan</label>
+              <select value={examId} onChange={(e) => setExamId(e.target.value)} className="field !w-auto">
+                <option value="">— Seçin —</option>
+                {exams.map(e => (
+                  <option key={e.id} value={e.id}>{e.name} ({e.exam_date})</option>
+                ))}
+              </select>
+            </div>
+          </>
+        ) : (
+          // Stansiya rejimi: imtahan dəyişdirilə bilməz, yalnız seçilmiş imtahan göstərilir.
+          <div>
+            <label className="label-inline">İmtahan</label>
+            <div className="field !w-auto bg-ink-100/60 text-ink-700 font-medium">
+              {selectedExamLabel}
+            </div>
+          </div>
+        )}
 
         <div className="flex-1">
           <label className="label-inline">Axtarış</label>
@@ -142,7 +149,7 @@ export default function ResultsListPage() {
 
       {examId && (
         <div className="mb-3 flex items-center gap-3 text-xs text-ink-600">
-          <span><strong>{stats.students}</strong> tələbə · <strong>{stats.exercises}</strong> hərəkət</span>
+          <span><strong>{stats.students}</strong> Abituriyent · <strong>{stats.exercises}</strong> hərəkət</span>
           <span className="px-2 py-0.5 rounded bg-moss-100 text-moss-700">
             {stats.filled}/{stats.cells} ({stats.pct}%)
           </span>
@@ -155,9 +162,14 @@ export default function ResultsListPage() {
       )}
 
       {loading ? <Spinner /> : !examId ? (
-        <Card><EmptyState title="İmtahan seçin" hint="Yuxarıdakı filtrlərdən istifadə edin" /></Card>
+        <Card>
+          <EmptyState
+            title={isAdmin ? "İmtahan seçin" : "İmtahan təyin olunmayıb"}
+            hint={isAdmin ? "Yuxarıdakı filtrlərdən istifadə edin" : "Stansiya quraşdırmasında imtahan seçilməlidir"}
+          />
+        </Card>
       ) : filteredStudents.length === 0 ? (
-        <Card><EmptyState title="Tələbə tapılmadı" hint="Filtrləri yumşaldıb yenidən cəhd edin" /></Card>
+        <Card><EmptyState title="Abituriyent tapılmadı" hint="Filtrləri yumşaldıb yenidən cəhd edin" /></Card>
       ) : (
         <div className="overflow-x-auto card">
           <table className="min-w-full text-sm">
