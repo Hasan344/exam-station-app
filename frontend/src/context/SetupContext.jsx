@@ -8,11 +8,19 @@
 //   Hərəkətlər imtahana bağlı bütün komissiyaların birləşməsindən gəlir;
 //   konkret komissiya isə iş səhifəsində (tələbə axtarışında) seçilir,
 //   çünki s_nomer yalnız komissiya daxilində unikaldır.
+//
+// SECTION 3 (ekspert bölməsi):
+//   Bu bölmədə hərəkət inputları əvəzinə EKSPERT inputları göstərilir
+//   (hər ekspert hər tələbəyə 0–100 tam bal yazır). isExpertSection bunu bildirir.
 
 import { createContext, useContext, useEffect, useState } from "react";
 
 const SetupContext = createContext(null);
 const STORAGE_KEY = "examstation_setup";
+
+// Ekspert bazlı qiymətləndirmə tətbiq olunan bölmənin ID-si.
+// Lazım olsa burada dəyişdirin (və ya sect_code-a görə yoxlayın).
+export const EXPERT_SECTION_ID = 3;
 
 const emptyState = {
   section: null,        // { id, name, sect_code }
@@ -37,16 +45,24 @@ export function SetupProvider({ children }) {
     try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(setup)); } catch {}
   }, [setup, loaded]);
 
-  const isReady = !!(
-    setup.section &&
-    setup.exam &&
-    setup.exercises &&
-    setup.exercises.length > 0
-  );
+  // Section 3 → ekspert bölməsi.
+  const isExpertSection = setup.section?.id === EXPERT_SECTION_ID;
+
+  // Ekspert bölməsində hərəkət seçimi tələb olunmur (inputlar ekspertlərdən gəlir),
+  // ona görə hazırlıq şərti də fərqlidir.
+  const isReady = isExpertSection
+    ? !!(setup.section && setup.exam)
+    : !!(
+        setup.section &&
+        setup.exam &&
+        setup.exercises &&
+        setup.exercises.length > 0
+      );
 
   const value = {
     setup,
     isReady,
+    isExpertSection,
     setSection:    (s)  => setSetup(st => ({ ...st, section: s, exam: null, exercises: [] })),
     setExam:       (e)  => setSetup(st => ({ ...st, exam: e, exercises: [] })),
     setExercises:  (xs) => setSetup(st => ({ ...st, exercises: xs })),

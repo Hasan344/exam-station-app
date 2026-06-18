@@ -1,6 +1,3 @@
-// backend/server.js
-//
-// Express server. Bütün API route-ları və (production-da) frontend static-i serve edir.
 
 const express = require("express");
 const cors = require("cors");
@@ -57,15 +54,16 @@ app.get("/api/health", (req, res) => {
 });
 
 // ─────────── API Routes ───────────
-app.use("/auth",        require("./routes/auth"));
-app.use("/sections",    require("./routes/sections"));
-app.use("/commissions", require("./routes/commissions"));
-app.use("/exercises",   require("./routes/exercises"));
-app.use("/exams",       require("./routes/exams"));
-app.use("/students",    require("./routes/students"));
-app.use("/results",     require("./routes/results"));
-app.use("/imports",     require("./routes/imports"));
-app.use("/exports",     require("./routes/exports"));
+app.use("/auth",           require("./routes/auth"));
+app.use("/sections",       require("./routes/sections"));
+app.use("/commissions",    require("./routes/commissions"));
+app.use("/exercises",      require("./routes/exercises"));
+app.use("/exams",          require("./routes/exams"));
+app.use("/students",       require("./routes/students"));
+app.use("/results",        require("./routes/results"));
+app.use("/expert-results", require("./routes/expert-results"));
+app.use("/imports",        require("./routes/imports"));
+app.use("/exports",        require("./routes/exports"));
 app.use("/resultsapp-import", require("./routes/resultsapp-import"));
 
 // ─────────── Static frontend ───────────
@@ -73,7 +71,7 @@ if (FRONTEND_PATH) {
   app.use(express.static(FRONTEND_PATH));
 
   // SPA fallback (yalnız API olmayan yollar)
-  app.get(/^(?!\/(api|auth|sections|commissions|exercises|exams|students|results|imports|exports|resultsapp-import)\/).*/, (req, res) => {
+  app.get(/^(?!\/(api|auth|sections|commissions|exercises|exams|students|results|expert-results|imports|exports|resultsapp-import)\/).*/, (req, res) => {
     res.sendFile(path.join(FRONTEND_PATH, "index.html"));
   });
 }

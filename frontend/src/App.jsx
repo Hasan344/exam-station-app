@@ -4,6 +4,8 @@ import LoginPage from "./pages/LoginPage.jsx";
 import SetupPage from "./pages/SetupPage.jsx";
 import WorkstationPage from "./pages/WorkstationPage.jsx";
 import ResultsListPage from "./pages/ResultsListPage.jsx";
+import ExpertWorkstationPage from "./pages/ExpertWorkstationPage.jsx";
+import ExpertResultsPage from "./pages/ExpertResultsPage.jsx";
 import AdminPage from "./pages/AdminPage.jsx";
 import TopBar from "./components/TopBar.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
@@ -32,6 +34,18 @@ function RequireAdmin({ children }) {
   return children;
 }
 
+// SECTION 3 (ekspert bölməsi) → fərqli iş/nəticə səhifələri.
+// Marşrut səviyyəsində dallanırıq ki, mövcud səhifələr toxunulmaz qalsın və
+// hook qaydaları pozulmasın (dispatcher hər render-də eyni hook-ları çağırır).
+function WorkstationRoute() {
+  const { isExpertSection } = useSetup();
+  return isExpertSection ? <ExpertWorkstationPage /> : <WorkstationPage />;
+}
+function ResultsRoute() {
+  const { isExpertSection } = useSetup();
+  return isExpertSection ? <ExpertResultsPage /> : <ResultsListPage />;
+}
+
 function Shell({ children }) {
   return (
     <div className="min-h-screen flex flex-col">
@@ -58,14 +72,14 @@ export default function App() {
         path="/"
         element={
           <Protected>
-            <Shell><RequireSetup><WorkstationPage /></RequireSetup></Shell>
+            <Shell><RequireSetup><WorkstationRoute /></RequireSetup></Shell>
           </Protected>
         }
       />
 
       <Route
         path="/results"
-        element={<Protected><Shell><ResultsListPage /></Shell></Protected>}
+        element={<Protected><Shell><ResultsRoute /></Shell></Protected>}
       />
 
       <Route
