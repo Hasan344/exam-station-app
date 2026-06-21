@@ -103,6 +103,7 @@ function ImportReport({ report }) {
 const SNAPSHOT_KEYS = [
   "sections", "exercises", "commissions", "commission_exercises",
   "exams", "exam_commissions", "students",
+  "experts", "exam_expert_subprofessions", "photos",
 ];
 
 function SnapshotJsonImportCard() {

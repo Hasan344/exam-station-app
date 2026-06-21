@@ -34,8 +34,8 @@ const FRONTEND_PATH = resolveFrontendDist();
 
 // ─────────── Middleware ───────────
 app.use(cors());
-app.use(express.json({ limit: "20mb" }));
-app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+app.use(express.json({ limit: "300mb" }));
+app.use(express.urlencoded({ extended: true, limit: "300mb" }));
 
 // Log middleware (yalnız dev)
 if (!IS_PROD) {
@@ -66,7 +66,7 @@ app.use("/imports",        require("./routes/imports"));
 app.use("/exports",        require("./routes/exports"));
 app.use("/resultsapp-import", require("./routes/resultsapp-import"));
 
-// ─────────── Static frontend ───────────
+
 if (FRONTEND_PATH) {
   app.use(express.static(FRONTEND_PATH));
 

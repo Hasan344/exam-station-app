@@ -42,10 +42,37 @@ function rawToInput(unit, raw) {
   return raw;
 }
 
+// base64 (və ya hazır data URI) → <img src> üçün data URI
+function toDataUri(b64) {
+  if (!b64) return null;
+  if (b64.startsWith("data:")) return b64;           // artıq tam data URI-dir
+  let mime = "image/jpeg";                            // mime sniff (base64 başlanğıcı)
+  if (b64.startsWith("iVBOR")) mime = "image/png";
+  else if (b64.startsWith("R0lG")) mime = "image/gif";
+  else if (b64.startsWith("UklG")) mime = "image/webp";
+  return `data:${mime};base64,${b64}`;
+}
+
 function StudentPhoto({ studentId }) {
-  const [hasError, setHasError] = useState(false);
-  useEffect(() => { setHasError(false); }, [studentId]);
-  if (hasError || !studentId) {
+  const [src, setSrc] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSrc(null);
+    setLoading(true);
+    if (!studentId) { setLoading(false); return; }
+    api.get(`/students/${studentId}/photo`)
+      .then((data) => { if (!cancelled) setSrc(toDataUri(data?.photo)); })
+      .catch(()    => { if (!cancelled) setSrc(null); })
+      .finally(()  => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [studentId]);
+
+  if (loading) {
+    return <div className="w-48 h-60 rounded-soft bg-ink-100 border border-ink-200 animate-pulse" />;
+  }
+  if (!src) {
     return (
       <div className="w-48 h-60 rounded-soft bg-ink-100 border border-ink-200 flex items-center justify-center text-ink-300 text-xs text-center px-2">
         Şəkil yoxdur
@@ -54,9 +81,8 @@ function StudentPhoto({ studentId }) {
   }
   return (
     <img
-      src={`/students/${studentId}/photo?ts=${studentId}`}
+      src={src}
       alt="Abituriyent şəkli"
-      onError={() => setHasError(true)}
       className="w-48 h-60 object-cover rounded-soft border border-ink-200 bg-ink-50"
     />
   );

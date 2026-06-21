@@ -7,6 +7,7 @@
 // Hər iki yol EYNI topological yazma məntiqini (importSnapshot) işlədir:
 //   sections → exercises → commissions → commission_exercises
 //   → exams → exam_commissions → students
+//   → experts → exam_expert_subprofession → photos
 //
 // Mövcud /imports/* endpointlərinin pattern-ini izləyir:
 //   • dbRun, dbGet — Promise wrapper-lər (database.js)
@@ -33,6 +34,7 @@ const { runSerial, summarize } = require("../services/excel-helpers");
 const { fetchSnapshot } = require("../services/resultsapp-client");
 
 // Snapshot-da gözlənilən massiv açarları (topological sıra ilə).
+// QEYD: exam_expert_subprofessions — .NET DTO-su CƏM (plural) serializasiya edir.
 const SNAPSHOT_KEYS = [
   "sections",
   "exercises",
@@ -41,6 +43,9 @@ const SNAPSHOT_KEYS = [
   "exams",
   "exam_commissions",
   "students",
+  "experts",
+  "exam_expert_subprofessions",
+  "photos",
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -83,6 +88,9 @@ function snapshotCounts(snap) {
     exams: snap.exams.length,
     exam_commissions: snap.exam_commissions.length,
     students: snap.students.length,
+    experts: snap.experts.length,
+    exam_expert_subprofessions: snap.exam_expert_subprofessions.length,
+    photos: snap.photos.length,
   };
 }
 
@@ -291,6 +299,71 @@ async function importSnapshot(snapshot) {
     "tələbə"
   );
 
+  // ─── 8. EXPERTS ──────────────────────────────────────────────────
+  // id = mənbə sistemin ID-si (AUTOINCREMENT YOX). Lokal experts cədvəlində
+  // yalnız (id, name) var → adı soyad + ad + ata adından birləşdiririk.
+  reports.experts = summarize(
+    await runSerial(snapshot.experts, async (r) => {
+      const fullName =
+        [r.surname, r.name, r.fname]
+          .map((x) => (x == null ? "" : String(x).trim()))
+          .filter(Boolean)
+          .join(" ") || r.name || `Ekspert #${r.id}`;
+
+      await dbRun(
+        `INSERT INTO experts (id, name) VALUES (?, ?)
+         ON CONFLICT(id) DO UPDATE SET name = excluded.name`,
+        [r.id, fullName]
+      );
+      return { id: r.id };
+    }),
+    "ekspert"
+  );
+
+  // ─── 9. EXAM_EXPERT_SUBPROFESSION ────────────────────────────────
+  // exam_id remap olunur; expert əvvəlcədən (addım 8) yazılıb.
+  // Cədvəldə UNIQUE(exam_id, expert_id) var, ON CONFLICT yoxdur → öncə yoxla.
+  reports.exam_expert_subprofession = summarize(
+    await runSerial(snapshot.exam_expert_subprofessions, async (r) => {
+      const targetExamId = examIdMap.get(r.exam_id);
+      if (!targetExamId) throw new Error(`exam_id=${r.exam_id} map edilmədi`);
+
+      const exp = await dbGet("SELECT id FROM experts WHERE id = ?", [r.expert_id]);
+      if (!exp) throw new Error(`expert_id=${r.expert_id} tapılmadı`);
+
+      const existing = await dbGet(
+        "SELECT id FROM exam_expert_subprofession WHERE exam_id = ? AND expert_id = ?",
+        [targetExamId, r.expert_id]
+      );
+      if (!existing) {
+        await dbRun(
+          "INSERT INTO exam_expert_subprofession (exam_id, expert_id) VALUES (?, ?)",
+          [targetExamId, r.expert_id]
+        );
+      }
+      return { exam_id: targetExamId, expert_id: r.expert_id };
+    }),
+    "ekspert-təyinatı"
+  );
+
+  // ─── 10. PHOTOS ──────────────────────────────────────────────────
+  // is_n → base64 şəkil. Tələbədən asılı deyil — ayrıca upsert (is_n UNIQUE).
+  // photo həm xam base64, həm də tam "data:..." URI ola bilər (frontend hər ikisini qəbul edir).
+  reports.photos = summarize(
+    await runSerial(snapshot.photos, async (r) => {
+      if (!r.is_n) throw new Error("photos: is_n boşdur");
+      if (!r.photo) throw new Error(`photos: ${r.is_n} üçün base64 boşdur`);
+
+      await dbRun(
+        `INSERT INTO photos (is_n, photo) VALUES (?, ?)
+         ON CONFLICT(is_n) DO UPDATE SET photo = excluded.photo`,
+        [r.is_n, r.photo]
+      );
+      return { is_n: r.is_n };
+    }),
+    "şəkil"
+  );
+
   // ─── Yekun ───────────────────────────────────────────────────────
   const totalInserted = Object.values(reports).reduce((s, r) => s + r.inserted, 0);
   const totalFailed = Object.values(reports).reduce((s, r) => s + r.failed, 0);
@@ -338,7 +411,8 @@ router.post("/run", express.json(), async (req, res) => {
 // ─────────── /resultsapp-import/import-json ───────────
 // Lokal snapshot JSON faylının məzmunu birbaşa body-də gəlir.
 // Bütün master data-nı bir dəfəyə SQLite-ə yazır (URL-ə qoşulmadan).
-router.post("/import-json", express.json({ limit: "50mb" }), async (req, res) => {
+// QEYD: base64 şəkillər böyükdür — limit lazım gəlsə artırın.
+router.post("/import-json", express.json({ limit: "100mb" }), async (req, res) => {
   try {
     const snapshot = normalizeSnapshot(req.body);
     const { reports, totalInserted, totalFailed } = await importSnapshot(snapshot);

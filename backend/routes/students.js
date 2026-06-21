@@ -124,35 +124,25 @@ router.get("/:id/results", async (req, res) => {
 //   Yoxdursa 404.
 router.get("/:id/photo", async (req, res) => {
   try {
-    const s = await dbGet(
-      "SELECT exam_id, is_n FROM students WHERE id = ?",
-      [req.params.id]
-    );
-    if (!s) return res.status(404).end();
+    const s = await dbGet("SELECT is_n FROM students WHERE id = ?", [req.params.id]);
+    if (!s) return res.status(404).json({ message: "Tələbə tapılmadı" });
 
-    const photoPath = findPhotoFile(s.exam_id, s.is_n);
-    if (!photoPath) return res.status(404).end();
+    const row = await dbGet("SELECT photo FROM photos WHERE is_n = ?", [s.is_n]);
+    if (!row || !row.photo) return res.status(404).json({ message: "Şəkil yoxdur" });
 
-    const ext = path.extname(photoPath).toLowerCase();
-    const mime = ext === ".png" ? "image/png" : "image/jpeg";
-    res.setHeader("Content-Type", mime);
-    res.setHeader("Cache-Control", "public, max-age=3600");
-    fs.createReadStream(photoPath).pipe(res);
+    res.json({ photo: row.photo });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
 // GET /students/:id/photo/exists
-//   Yüngül HEAD-kimi endpoint — UI dilemma-sız yoxlamaq üçün ({ exists: bool }).
 router.get("/:id/photo/exists", async (req, res) => {
   try {
-    const s = await dbGet(
-      "SELECT exam_id, is_n FROM students WHERE id = ?",
-      [req.params.id]
-    );
+    const s = await dbGet("SELECT is_n FROM students WHERE id = ?", [req.params.id]);
     if (!s) return res.json({ exists: false });
-    res.json({ exists: !!findPhotoFile(s.exam_id, s.is_n) });
+    const row = await dbGet("SELECT 1 FROM photos WHERE is_n = ?", [s.is_n]);
+    res.json({ exists: !!row });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -11,8 +11,10 @@
 //   • input type="text" olur (number "2.24"-ü onluq sayır, biz mm.ss istəyirik)
 //   • operator "2.24" yazır → altında canlı "= 2:24" göstərilir
 //   • valideyn komponent saxlayanda parseMinSec ilə saniyəyə çevirir
+//   • input YANINDA vahid sözü GÖSTƏRİLMİR — dəyər mm.ss formatındadır,
+//     "saniyə" etiketi yanıltıcı olardı.
 //
-// score vahidi:
+// score (bal) və count (dəfə) vahidləri:
 //   • yalnız TAM ədəd (kəsr hissə yoxdur) — "." "," "e" "+" "-" bloklanır,
 //     yapışdırılan/daxil olunan mətndən rəqəm olmayan simvollar atılır.
 //
@@ -53,7 +55,10 @@ export default function ExerciseInput({
   const inputRef = useRef(null);
   const readOnly = locked && !unlocked;
   const isMinSec = exercise.unit === "min_sec";
-  const isScore  = exercise.unit === "score";   // yalnız tam ədəd
+  const isScore  = exercise.unit === "score";   // bal
+  const isCount  = exercise.unit === "count";   // dəfə
+  // "bal" (score) və "dəfə" (count) — yalnız TAM ədəd, kəsr hissə yoxdur.
+  const isInteger = isScore || isCount;
 
   // Kompakt rejim: 1–2 hərəkət olduqda kartı bir az daha sıxırıq.
   const compact = total <= 2;
@@ -82,15 +87,15 @@ export default function ExerciseInput({
       if (!readOnly && !saveDisabled) onSave?.();
       return;
     }
-    // score: yalnız tam ədəd — onluq ayırıcı və elmi format simvollarını blokla
-    if (isScore && ["e", "E", "+", "-", ".", ","].includes(e.key)) {
+    // tam ədəd vahidləri (bal/dəfə): onluq ayırıcı və elmi format simvollarını blokla
+    if (isInteger && ["e", "E", "+", "-", ".", ","].includes(e.key)) {
       e.preventDefault();
     }
   };
 
-  // score üçün yapışdırma/daxiletmədə rəqəm olmayan simvolları at (kəsr hissə yazıla bilməz)
+  // tam ədəd vahidləri üçün yapışdırma/daxiletmədə rəqəm olmayan simvolları at (kəsr hissə yazıla bilməz)
   const handleChange = (raw) => {
-    if (isScore) raw = raw.replace(/[^\d]/g, "");
+    if (isInteger) raw = raw.replace(/[^\d]/g, "");
     onChange(raw);
   };
 
@@ -125,9 +130,6 @@ export default function ExerciseInput({
       <div className={`flex items-start justify-between ${compact ? "mb-2" : "mb-3"}`}>
         <div>
           <div className="flex items-center gap-2 text-xs text-ink-500 uppercase tracking-wider">
-            <span>{index + 1}/{total}</span>
-            <span>·</span>
-            <span>{exercise.code}</span>
           </div>
           <h3 className={`font-display ${compact ? "text-lg" : "text-xl"} text-ink-900 mt-1 flex items-center gap-2`}>
             {exercise.name}
@@ -213,8 +215,8 @@ export default function ExerciseInput({
               <input
                 ref={inputRef}
                 type={isMinSec ? "text" : "number"}
-                step={isMinSec ? undefined : isScore ? "1" : "0.01"}
-                inputMode={isScore ? "numeric" : "decimal"}
+                step={isMinSec ? undefined : isInteger ? "1" : "0.01"}
+                inputMode={isInteger ? "numeric" : "decimal"}
                 disabled={inputDisabled}
                 value={value ?? ""}
                 onChange={(e) => handleChange(e.target.value)}
@@ -223,9 +225,13 @@ export default function ExerciseInput({
                 className={`huge-input field flex-1 disabled:bg-ink-100 disabled:text-ink-400 ${minSecInvalid ? "border-rust-500 focus:ring-rust-300" : ""}`}
               />
             )}
-            <span className="text-ink-500 font-medium text-lg min-w-[60px]">
-              {unitShort(exercise.unit)}
-            </span>
+            {/* min_sec-də vahid sözü GÖSTƏRİLMİR — dəyər mm.ss formatındadır, yuxarıdakı
+                "(dəqiqə.saniyə)" etiketi və canlı "= M:SS" önizləməsi kifayətdir. */}
+            {!isMinSec && (
+              <span className="text-ink-500 font-medium text-lg min-w-[60px]">
+                {unitShort(exercise.unit)}
+              </span>
+            )}
           </div>
 
           {/* Apellyasiya seçim ipuçları */}
