@@ -25,6 +25,18 @@ import { PageHeader, Card, Spinner, EmptyState } from "../components/ui/Primitiv
 import ExerciseInput from "../components/ExerciseInput.jsx";
 import { fullName, genderLabel, formatDate, unitShort, parseMinSec, secondsToMinSecInput } from "../lib/format.js";
 
+// ────────────────────────────────────────────────────────────────
+// UZUN MƏSAFƏ QAÇIŞI — virtual slot
+//
+// Hər komissiyada yalnız BİR uzun məsafə qaçışı olur (sprint_400m və ya
+// cross_1000m). Operatora ayrı-ayrı sütunlar əvəzinə TƏK "Uzun məsafə qaçışı"
+// inputu göstərilir; arxada tələbənin commission_no-suna görə düzgün
+// exercise_code (real exercise_id) həll olunur.
+//
+// QEYD: bu siyahı SetupPage.jsx-dəki eyni adlı sabitlə SİNXRON qalmalıdır.
+//       Hər iki kod min_sec vahidindədir (mm.ss).
+const LONG_RUN_CODES = ["sprint_400m", "cross_1000m"];
+
 const blankInput = () => ({ rawValue: "", isRefused: false, notes: "" });
 
 // Vahidə görə: input mətnini (operatorun gördüyü) DB üçün saniyəyə çevir.
@@ -130,6 +142,10 @@ export default function WorkstationPage() {
   const [student, setStudent] = useState(null);
   const [loadingStudent, setLoadingStudent] = useState(false);
 
+  // Cari tələbə üçün həll olunmuş uzun məsafə qaçışı (real DB hərəkəti) və ya null.
+  // Komissiyada uyğun kod yoxdursa null qalır → virtual slot gizlədilir.
+  const [resolvedLongRun, setResolvedLongRun] = useState(null);
+
   // Nəticə vəziyyəti
   const [inputs, setInputs] = useState({});
   const [meta, setMeta] = useState({});
@@ -140,6 +156,7 @@ export default function WorkstationPage() {
   const [appealDecisions, setAppealDecisions] = useState({});
 
   const [savingEx, setSavingEx] = useState(null);
+  const [savingAll, setSavingAll] = useState(false);
 
   const [unlocked, setUnlocked] = useState(false);
   const editPwRef = useRef(null);
@@ -149,13 +166,20 @@ export default function WorkstationPage() {
   const sNomerRef = useRef(null);
   useEffect(() => { sNomerRef.current?.focus(); }, []);
 
-  const initInputs = useCallback((existing = []) => {
+  // existing = tələbənin mövcud nəticələri.
+  // resolved  = bu tələbə üçün uzun məsafə qaçışının real DB hərəkəti (və ya null).
+  //   Virtual slotun inputu/meta-sı "ex.id" (virtual açar) ilə açarlanır, lakin
+  //   mövcud nəticə real exercise_id ilə tapılır.
+  const initInputs = useCallback((existing = [], resolved = null) => {
     const ri = {}, rm = {}, ai = {}, am = {};
     for (const ex of setup.exercises) {
-      const found = existing.find(r => r.exercise_id === ex.id);
+      const realEx = ex.virtual ? resolved : ex;
+      const realId = realEx?.id;
+      const unit   = realEx?.unit ?? ex.unit;
+      const found  = realId != null ? existing.find(r => r.exercise_id === realId) : undefined;
       if (found) {
         ri[ex.id] = {
-          rawValue: found.is_refused ? "" : rawToInput(ex.unit, found.raw_value),
+          rawValue: found.is_refused ? "" : rawToInput(unit, found.raw_value),
           isRefused: !!found.is_refused,
           notes: found.notes ?? "",
         };
@@ -163,7 +187,7 @@ export default function WorkstationPage() {
 
         const hasAppeal = found.appeal_value != null || !!found.appeal_is_refused;
         ai[ex.id] = {
-          rawValue: found.appeal_is_refused ? "" : rawToInput(ex.unit, found.appeal_value),
+          rawValue: found.appeal_is_refused ? "" : rawToInput(unit, found.appeal_value),
           isRefused: !!found.appeal_is_refused,
           notes: found.appeal_notes ?? "",
         };
@@ -182,15 +206,41 @@ export default function WorkstationPage() {
     if (!sNomer) return toast.warn("Qol nömrəsi daxil edin");
     setLoadingStudent(true);
     setStudent(null);
+    setResolvedLongRun(null);
     setUnlocked(false);
     editPwRef.current = null;
     try {
       const s = await api.get(
         `/students/lookup?examId=${setup.exam.id}&sNomer=${sNomer}`
       );
+
+      // Stansiyada virtual "uzun məsafə qaçışı" slotu seçilibsə, tələbənin
+      // komissiyasına görə real hərəkəti (sprint_400m / cross_1000m) həll et.
+      let resolved = null;
+      if (setup.exercises.some(e => e.virtual)) {
+        try {
+          const commEx = await api.get(
+            `/commissions/${encodeURIComponent(s.commission_no)}/exercises`
+          );
+          const longs = (commEx || [])
+            .filter(e => LONG_RUN_CODES.includes(e.code))
+            .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+          resolved = longs[0] || null;
+          if (longs.length > 1) {
+            console.warn(
+              `Komissiya ${s.commission_no}: birdən çox uzun məsafə qaçışı kodu tapıldı —`,
+              longs.map(l => l.code)
+            );
+          }
+        } catch (e) {
+          console.warn("Uzun məsafə qaçışı həll edilə bilmədi:", e?.message || e);
+        }
+      }
+
       const existing = await api.get(`/students/${s.id}/results`);
       setStudent(s);
-      initInputs(existing);
+      setResolvedLongRun(resolved);
+      initInputs(existing, resolved);
       if (existing.length > 0) {
         const ap = existing.filter(r => r.appeal_value != null || r.appeal_is_refused).length;
         toast.info(`Bu Abituriyentin ${existing.length} nəticəsi mövcuddur${ap ? ` · ${ap} apellyasiya` : ""}`);
@@ -213,6 +263,13 @@ export default function WorkstationPage() {
     if (mode === "appeal") setAppealInputs(p => ({ ...p, [exId]: { ...p[exId], ...patch } }));
     else setInputs(p => ({ ...p, [exId]: { ...p[exId], ...patch } }));
   };
+
+  // Virtual slotun bu tələbə üçün real (DB) hərəkətini qaytar.
+  const slotReal = (ex) => (ex.virtual ? resolvedLongRun : ex);
+
+  // Bu tələbə üçün GÖRÜNƏN slotlar: virtual uzun qaçış yalnız komissiyada
+  // uyğun kod varsa (resolvedLongRun != null) göstərilir.
+  const visibleExercises = setup.exercises.filter(ex => !ex.virtual || !!resolvedLongRun);
 
   // ── parol açma ──
   const ensureUnlocked = () => new Promise((resolve) => {
@@ -253,18 +310,28 @@ export default function WorkstationPage() {
   };
 
   const focusNextUnsaved = (fromIndex) => {
-    for (let i = fromIndex + 1; i < setup.exercises.length; i++) {
-      const ex = setup.exercises[i];
+    for (let i = fromIndex + 1; i < visibleExercises.length; i++) {
+      const ex = visibleExercises[i];
       const m = activeMeta[ex.id];
       if (!(m?.locked && !unlocked)) {
         const slot = document.querySelectorAll(".workstation-grid > .exercise-slot")[i];
-        slot?.querySelector("input[type=number]")?.focus();
+        // min_sec inputu type="text", digərləri type="number" → hər ikisini hədəflə
+        // (imtina checkbox-u type="checkbox" olduğu üçün seçilmir).
+        slot?.querySelector("input[type=number], input[type=text]")?.focus();
         return;
       }
     }
   };
 
   const saveOne = async (ex, index) => {
+    // Virtual slot üçün real DB hərəkətini həll et.
+    const realEx = ex.virtual ? resolvedLongRun : ex;
+    if (ex.virtual && !realEx) {
+      return toast.warn(`${ex.name}: bu komissiyada uzun məsafə qaçışı yoxdur`);
+    }
+    const exId   = realEx.id;
+    const exUnit = realEx.unit;
+
     const inp = activeInputs[ex.id];
     const m = activeMeta[ex.id] || {};
 
@@ -277,14 +344,14 @@ export default function WorkstationPage() {
       if (decision === "changed") {
         const err = validateInput(ex, inp, "apellyasiya dəyəri");
         if (err) return toast.warn(err);
-        appealValue     = inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue);
+        appealValue     = inp.isRefused ? null : inputToRaw(exUnit, inp.rawValue);
         appealIsRefused = !!inp.isRefused;
       } else {
         // "unchanged" → köhnə (əsas) nəticəni apellyasiya kimi saxla
         const main = inputs[ex.id] || {};
         const hasMain = main.isRefused || (main.rawValue !== "" && main.rawValue != null);
         if (!hasMain) return toast.warn(`${ex.name}: əsas nəticə yoxdur, «Dəyişmədi» seçilə bilməz`);
-        appealValue     = main.isRefused ? null : inputToRaw(ex.unit, main.rawValue);
+        appealValue     = main.isRefused ? null : inputToRaw(exUnit, main.rawValue);
         appealIsRefused = !!main.isRefused;
       }
 
@@ -298,7 +365,7 @@ export default function WorkstationPage() {
         const r = await api.post("/results/appeal/single", {
           studentId: student.id,
           examId: setup.exam.id,
-          exerciseId: ex.id,
+          exerciseId: exId,
           appealValue,
           appealIsRefused,
           appealNotes: inp.notes || null,
@@ -332,7 +399,7 @@ export default function WorkstationPage() {
       let row;
       if (m.saved && m.resultId) {
         const r = await api.put(`/results/${m.resultId}`, {
-          rawValue: inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue),
+          rawValue: inp.isRefused ? null : inputToRaw(exUnit, inp.rawValue),
           isRefused: inp.isRefused,
           notes: inp.notes || null,
           editPassword: editPwRef.current,
@@ -344,8 +411,8 @@ export default function WorkstationPage() {
         const r = await api.post("/results/single", {
           studentId: student.id,
           examId: setup.exam.id,
-          exerciseId: ex.id,
-          rawValue: inp.isRefused ? null : inputToRaw(ex.unit, inp.rawValue),
+          exerciseId: exId,
+          rawValue: inp.isRefused ? null : inputToRaw(exUnit, inp.rawValue),
           isRefused: inp.isRefused,
           notes: inp.notes || null,
           recordedBy: user?.name || "operator",
@@ -364,23 +431,26 @@ export default function WorkstationPage() {
 
   // Yalnız Nəticə rejimində — hamısını birlikdə saxla
   const handleSaveAll = async () => {
-    for (const ex of setup.exercises) {
+    for (const ex of visibleExercises) {
       const err = validateInput(ex, inputs[ex.id], "dəyər");
       if (err) return toast.warn(err);
     }
-    const hasLocked = setup.exercises.some(ex => meta[ex.id]?.locked);
+    const hasLocked = visibleExercises.some(ex => meta[ex.id]?.locked);
     if (hasLocked) { const ok = await ensureUnlocked(); if (!ok) return; }
 
     setSavingAll(true);
     try {
-      const items = setup.exercises.map(ex => ({
-        studentId: student.id,
-        examId: setup.exam.id,
-        exerciseId: ex.id,
-        rawValue: inputs[ex.id].isRefused ? null : inputToRaw(ex.unit, inputs[ex.id].rawValue),
-        isRefused: !!inputs[ex.id].isRefused,
-        notes: inputs[ex.id].notes || null,
-      }));
+      const items = visibleExercises.map(ex => {
+        const realEx = ex.virtual ? resolvedLongRun : ex;
+        return {
+          studentId: student.id,
+          examId: setup.exam.id,
+          exerciseId: realEx.id,
+          rawValue: inputs[ex.id].isRefused ? null : inputToRaw(realEx.unit, inputs[ex.id].rawValue),
+          isRefused: !!inputs[ex.id].isRefused,
+          notes: inputs[ex.id].notes || null,
+        };
+      });
       const result = await api.post("/results/bulk", {
         recordedBy: user?.name || "operator",
         editPassword: editPwRef.current || undefined,
@@ -398,6 +468,7 @@ export default function WorkstationPage() {
   const goNext = () => {
     const nextNo = (Number(sNomer) || 0) + 1;
     setStudent(null);
+    setResolvedLongRun(null);
     setInputs({}); setMeta({}); setAppealInputs({}); setAppealMeta({});
     setAppealDecisions({});
     setUnlocked(false); editPwRef.current = null;
@@ -405,7 +476,7 @@ export default function WorkstationPage() {
     setTimeout(() => sNomerRef.current?.focus(), 100);
   };
 
-  const exerciseCount = setup.exercises.length;
+  const exerciseCount = visibleExercises.length;
   const isAppeal = mode === "appeal";
 
   const refText = (ex) => {
@@ -505,7 +576,7 @@ export default function WorkstationPage() {
               {/* SAĞ BLOK — nəticə inputları (şəklin sağında) */}
               <div className="flex-1 min-w-0 w-full">
                 <div className="workstation-grid grid grid-cols-1 lg:grid-cols-2 gap-3">
-                  {setup.exercises.map((ex, i) => (
+                  {visibleExercises.map((ex, i) => (
                     <div key={ex.id} className="exercise-slot">
                       <ExerciseInput
                         exercise={ex}

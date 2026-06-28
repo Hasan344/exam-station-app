@@ -24,6 +24,37 @@ import { PageHeader, Card, Chip, Spinner, EmptyState } from "../components/ui/Pr
 import { unitLabel, formatDate } from "../lib/format.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
+// ────────────────────────────────────────────────────────────────
+// UZUN MƏSAFƏ QAÇIŞI — Step 3-də birləşdirmə
+//
+// İmtahanın komissiyalarındakı uzun məsafə qaçışları (sprint_400m / cross_1000m)
+// operatora ayrı-ayrı yox, TƏK "Uzun məsafə qaçışı" seçimi kimi göstərilir.
+// Düzgün exercise_code iş səhifəsində tələbənin commission_no-suna görə həll olunur.
+//
+// QEYD: bu siyahı WorkstationPage.jsx-dəki eyni adlı sabitlə SİNXRON qalmalıdır.
+const LONG_RUN_CODES = ["sprint_400m", "cross_1000m"];
+const VIRTUAL_LONG_RUN_ID = "__long_run__";
+
+// İmtahanın hərəkət birləşməsindəki uzun qaçışları tək virtual seçimə çevir.
+// Heç biri yoxdursa siyahı dəyişmir.
+function collapseLongRuns(list) {
+  const all = list || [];
+  const longs = all.filter((e) => LONG_RUN_CODES.includes(e.code));
+  if (longs.length === 0) return all;
+  const order = Math.min(...longs.map((e) => e.display_order ?? 0));
+  const rest = all.filter((e) => !LONG_RUN_CODES.includes(e.code));
+  const virtual = {
+    id: VIRTUAL_LONG_RUN_ID,
+    code: VIRTUAL_LONG_RUN_ID,
+    name: "Uzun məsafə qaçışı",
+    unit: "min_sec",
+    direction: 1,
+    display_order: order,
+    virtual: true,
+  };
+  return [...rest, virtual].sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+}
+
 function StepNumber({ n, active, done }) {
   return (
     <span className={`
@@ -169,12 +200,12 @@ export default function SetupPage() {
   );
 
   // 3. İmtahan seçiləndə bu imtahanın bütün komissiyalarındakı hərəkətlərin
-  //    təkrarsız birləşməsini yüklə
+  //    təkrarsız birləşməsini yüklə (uzun qaçışlar tək virtual seçimə yığılır)
   useEffect(() => {
     if (!setup.exam) { setAllowedExercises([]); return; }
     setLoading(l => ({ ...l, x: true }));
     api.get(`/exams/${setup.exam.id}/exercises`)
-      .then(setAllowedExercises)
+      .then(list => setAllowedExercises(collapseLongRuns(list)))
       .catch(err => toast.error("Hərəkətlər yüklənmədi: " + err.message))
       .finally(() => setLoading(l => ({ ...l, x: false })));
   }, [setup.exam?.id]);
@@ -297,8 +328,10 @@ export default function SetupPage() {
                   <Chip key={ex.id}
                         active={selectedIds.has(ex.id)}
                         onClick={() => toggleExercise(ex)}>
-                    <span className="font-mono text-xs opacity-70">{ex.code}</span>
-                    <span className="ml-2">{ex.name}</span>
+                    {!ex.virtual && (
+                      <span className="font-mono text-xs opacity-70">{ex.code}</span>
+                    )}
+                    <span className={ex.virtual ? "" : "ml-2"}>{ex.name}</span>
                     <span className="ml-2 text-xs opacity-70">({unitLabel(ex.unit)})</span>
                   </Chip>
                 ))}
